@@ -1,0 +1,22 @@
+CREATE TABLE IF NOT EXISTS "DOWNLOAD_TASK"(
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    "id_custom" TEXT NOT NULL,
+    "url" TEXT NOT NULL,
+    "status" INTEGER NOT NULL,
+    "progress" INTEGER NOT NULL,
+    "headers" TEXT NOT NULL,
+    "path" TEXT NOT NULL,
+    "size" INTEGER NOT NULL,
+    "size_saved" INTEGER NULL,
+    "display_name" TEXT NOT NULL,
+    "type" TEXT NOT NULL,
+    "index" INTEGER NOT NULL,
+    "created_at" NUMERIC NOT NULL,
+    "completed_at" NUMERIC NULL
+);
+
+CREATE TABLE IF NOT EXISTS "DOWNLOAD_GROUP_TASK"(
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    "title" TEXT NOT NULL,
+    "created_at" NUMERIC NOT NULL
+);
