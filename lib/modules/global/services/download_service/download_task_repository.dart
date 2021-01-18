@@ -2,11 +2,8 @@ import 'dart:convert';
 import 'package:download_d/db/DB.dart';
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
-import 'package:path/path.dart';
-
 import 'models/download_task.dart';
 import 'models/download_task_status.dart';
-import 'models/download_task_type.dart';
 
 class DownloadTaskRepository {
   static final DownloadTaskRepository _singleton =
@@ -38,12 +35,14 @@ class DownloadTaskRepository {
     DownloadTaskStatus status = DownloadTaskStatus.enqueued,
     int progress = 0,
     Map<String, dynamic> headers,
-    @required String path,
+    @required String saveDir,
+    @required String fileName,
     @required int size,
-    int sizeSaved = 0,
+    bool resumable = false,
     String displayName,
-    @required DownloadTaskType type,
-    int index = 0,
+    bool showNotification=true,
+    @required String mimeType,
+    int index,
     DateTime completedAt,
   }) async {
     final db = DB.db;
@@ -56,11 +55,13 @@ class DownloadTaskRepository {
         'status': status.value,
         'progress': progress,
         'headers': jsonEncode(headers),
-        'path': path,
+        'save_dir': saveDir,
+        'file_name': fileName,
         'size': size,
-        'size_saved': 0,
-        'display_name': displayName ?? basename(path),
-        'type': type.value,
+        'resumable': resumable ? 1 : 0,
+        'display_name': displayName ?? fileName,
+        'show_notification' : showNotification ? 1 : 0,
+        'mime_type': mimeType,
         'index': index,
         'created_at': DateFormat(dataFormat).format(DateTime.now()).toString(),
         'completed_at': completedAt != null
@@ -76,17 +77,24 @@ class DownloadTaskRepository {
     DownloadTaskStatus status,
     int progress,
     Map<String, dynamic> headers,
-    String path,
+    String saveDir,
+    String fileName,
     int size,
-    int sizeSaved = 0,
+    bool resumable,
     String displayName,
-    DownloadTaskType type,
+    bool showNotification,
+    String mimeType,
     List<String> fieldsIgnoreNull,
-    Map<String, dynamic> where,
+    Map<String, dynamic> whereEquals,
+    Map<String, dynamic> whereDistinct,
     int index,
+    bool canResume,
     DateTime completedAt,
   }) async {
     final db = DB.db;
+
+    String where='';
+
     Map<String, dynamic> values = {};
     fieldsIgnoreNull = fieldsIgnoreNull ?? [];
 
@@ -95,11 +103,13 @@ class DownloadTaskRepository {
     if (status != null) values.addAll({'status': status.value});
     if (progress != null) values.addAll({'progress': progress});
     if (headers != null) values.addAll({'headers': jsonEncode(headers)});
-    if (path != null) values.addAll({'path': path});
+    if (saveDir != null) values.addAll({'save_dir': saveDir});
+    if (fileName != null) values.addAll({'file_name': fileName});
     if (size != null) values.addAll({'size': size});
-    if (sizeSaved != null) values.addAll({'size_saved': sizeSaved});
+    if (resumable != null) values.addAll({'resumable': resumable ? 1 : 0});
     if (displayName != null) values.addAll({'display_name': displayName});
-    if (type != null) values.addAll({'type': type.value});
+    if (showNotification != null) values.addAll({'show_notification': showNotification ? 1 : 0});
+    if (mimeType != null) values.addAll({'type': mimeType});
     if (status != null) values.addAll({'status': status.value});
     if (index != null) values.addAll({'index': index});
     if (completedAt != null)
@@ -107,16 +117,28 @@ class DownloadTaskRepository {
         'completed_at': DateFormat(dataFormat).format(completedAt).toString()
       });
 
-    int id = await db.update(tableName, values,
-        where: (where ?? {}).length == 0
-            ? null
-            : where.entries
+      where =(whereEquals ?? {}).length == 0
+            ? ''
+            : whereEquals.entries
                 .map<String>((MapEntry item) => '${item.key} = ?')
                 .toList()
-                .join(', '),
-        whereArgs: where.length == 0
+                .join(', ');
+
+    where+=(whereDistinct ?? {}).length == 0
+            ? ''
+            : whereDistinct.entries
+                .map<String>((MapEntry item) => '${item.key} != ?')
+                .toList()
+                .join(', ');
+
+
+    print(where);
+
+    int id = await db.update(tableName, values,
+        where: where,
+        whereArgs: whereEquals.length == 0
             ? null
-            : where.entries
+            : whereEquals.entries
                 .map<dynamic>((MapEntry item) => item.value)
                 .toList());
     return id;
@@ -128,7 +150,7 @@ class DownloadTaskRepository {
     });
   }
 
-  Future<int> deleteByCustomId(idCustom) async {
+  Future<int> deleteByCustomId(String idCustom) async {
     return _deleteByField({
       'id_custom': idCustom,
     });
@@ -161,7 +183,7 @@ class DownloadTaskRepository {
     return _findByField({'id': id});
   }
 
-  Future<DownloadTask> findByIdCustom(int idCustom) {
+  Future<DownloadTask> findByIdCustom(String idCustom) {
     return _findByField({'id_custom': idCustom});
   }
 

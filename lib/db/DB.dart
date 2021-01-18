@@ -8,48 +8,45 @@ abstract class DB {
   static Future<void> init() async {
     String path = join(await getDatabasesPath(), 'download_d.db');
 
-    print(path);
-
     if (db != null) {
       return;
     }
 
-    db = await openDatabase(path,version: 2, onOpen: _onOpen, onCreate: _onCreate, onUpgrade: _onUprade);
+    db = await openDatabase(
+      path,
+      version: 1,
+      onOpen: _onOpen,
+      onCreate: _onCreate,
+      onUpgrade: _onUprade,
+    );
   }
 
-  static Future<void> dispose()async{
+  static Future<void> dispose() async {
     await db.close();
   }
 
-  static void _onOpen(Database db) {
-
-  }
+  static void _onOpen(Database db) {}
 
   static void _onCreate(Database db, int version) {
     print('database created');
 
-    rootBundle.loadString('lib/db/db_script.sql')
-      .then((String script) {
-        List<String> scripts = script.split(";");
-        scripts.forEach((v) {
-          if (v.isNotEmpty) {
-            print(v);
-            db.execute(v.trim());
-          }
-        });
-      })
-      .catchError((err) {
-        print("Error: " + err.toString());
-        //throw(err);
+    rootBundle.loadString('lib/db/db_script.sql').then((String script) {
+      List<String> scripts = script.split(";");
+      scripts.forEach((v) {
+        if (v.isNotEmpty) {
+          print(v);
+          db.execute(v.trim());
+        }
       });
+    }).catchError((err) {
+      print("Error: " + err.toString());
+      //throw(err);
+    });
   }
 
-  static void _onUprade(Database db, int oldVersion, int newVersion) {
+  static void _onUprade(Database db, int oldVersion, int newVersion) {}
 
-  }
-
-
-  static Future<void> initData()async{
+  static Future<void> initData() async {
     // int idUser=await User.add(User());
     // int idAccount=await Account.add(Account(name: 'Efectivo',idUser: idUser,orderCustom: 0));
 
@@ -66,7 +63,6 @@ abstract class DB {
     //     repeatMode: TransactionRepeatMode.EveryDay,
     //   ));
     // }
-    
   }
 
   // static String _getStringFromBytes(ByteData data) {

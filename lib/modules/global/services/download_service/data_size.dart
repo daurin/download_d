@@ -1,7 +1,7 @@
 import 'dart:math';
 
 abstract class DataSize{
-  static const suffixes = ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
+  static const _suffixes = ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
 
   static String formatBytes(
     int bytes, {
@@ -12,17 +12,17 @@ abstract class DataSize{
     if (bytes <= 0) return "0 B";
     int i;
     if(suffix!=null){
-      i=suffixes.indexOf(suffix);
+      i=_suffixes.indexOf(suffix);
     }
     if(i==null)i = (log(bytes) / log(1024)).floor();
     String formatted=((bytes / pow(1024, i)).toStringAsFixed(decimals));
-    if(showSuffix)formatted+=' ' + suffixes[i];
+    if(showSuffix)formatted+=' ' + _suffixes[i];
     return formatted;
   }
 
   static String getSuffix(int bytes){
     int i = (log(bytes) / log(1024)).floor();
-    return suffixes[i];
+    return _suffixes[i];
   }
 }
 

@@ -24,7 +24,7 @@ class DownloadTaskStatus {
     }
   }
 
-  operator ==(e) => e._value == this._value;
+  operator == (e) => e._value == this._value;
 
   toString() => 'DownloadTaskStatus($_value)';
 

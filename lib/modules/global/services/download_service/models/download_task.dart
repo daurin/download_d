@@ -3,20 +3,21 @@ import 'package:intl/intl.dart';
 
 import '../download_task_repository.dart';
 import 'download_task_status.dart';
-import 'download_task_type.dart';
 
 class DownloadTask {
   final int id;
-  final int idCustom;
+  final String idCustom;
   final String url;
   final DownloadTaskStatus status;
   final int progress;
   final Map<String, dynamic> headers;
-  final String path;
+  final String saveDir;
+  final String fileName;
   final int size;
-  final int sizeSaved;
+  final bool resumable;
   final String displayName;
-  final DownloadTaskType type;
+  final bool showNotification;
+  final String mimeType;
   final int index;
   final DateTime createdAt;
   final DateTime completedAt;
@@ -28,11 +29,13 @@ class DownloadTask {
     this.status,
     this.progress,
     this.headers,
-    this.path,
+    this.saveDir,
+    this.fileName,
     this.size,
-    this.sizeSaved,
+    this.resumable,
     this.displayName,
-    this.type,
+    this.showNotification,
+    this.mimeType,
     this.index,
     this.createdAt,
     this.completedAt,
@@ -46,14 +49,62 @@ class DownloadTask {
       status: DownloadTaskStatus(map['status']),
       progress: map['progress'],
       headers: jsonDecode(map['headers']),
-      path: map['path'],
+      saveDir: map['save_dir'],
+      fileName: map['file_name'],
       size: map['size'],
-      sizeSaved: map['size_saved'],
+      resumable: map['resumable'] == 1,
       displayName: map['display_name'],
-      type: DownloadTaskType(map['type']),
+      showNotification: map['show_notification'] == 1,
+      mimeType: map['mime_type'],
       index: map['index'],
-      createdAt: DateFormat(DownloadTaskRepository.dataFormat).parse(map['created_at']),
-      completedAt: DateFormat(DownloadTaskRepository.dataFormat).parse(map['completed_at'])
+      createdAt: map['created_at'] == null
+          ? null
+          : DateFormat(DownloadTaskRepository.dataFormat)
+              .parse(map['created_at']),
+      completedAt: map['completed_at'] == null
+          ? null
+          : DateFormat(DownloadTaskRepository.dataFormat)
+              .parse(map['completed_at']),
     );
   }
+
+  DownloadTask copyWith({
+   int id,
+   String idCustom,
+   String url,
+   DownloadTaskStatus status,
+   int progress,
+   Map<String, dynamic> headers,
+   String saveDir,
+   String fileName,
+   int size,
+   bool resumable,
+   String displayName,
+   bool showNotification,
+   String mimeType,
+   int index,
+   DateTime createdAt,
+   DateTime completedAt,
+  }){
+    return DownloadTask(
+      id: id ?? this.id,
+      idCustom: idCustom ?? this.idCustom,
+      url : url ?? this.url,
+      status: status ?? this.status,
+      progress: progress ?? this.progress,
+      headers: headers ?? this.headers,
+      saveDir: saveDir ?? this.saveDir,
+      fileName: fileName ?? this.fileName,
+      size: size ?? this.size,
+      resumable: resumable ?? this.resumable,
+      displayName: displayName ?? this.displayName,
+      showNotification: showNotification ?? this.showNotification,
+      mimeType: mimeType ?? this.mimeType,
+      index: index ?? this.index,
+      createdAt: createdAt ?? this.createdAt,
+      completedAt: completedAt ?? this.completedAt,
+    );
+  }
+
+  String get path=> saveDir+'/'+fileName;
 }

@@ -1,10 +1,12 @@
 import 'package:download_d/app.dart';
+import 'package:download_d/modules/global/repositories/local_storage.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
-void main() {
+import 'db/DB.dart';
+
+void main() async{
   WidgetsFlutterBinding.ensureInitialized();
-
-  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+  await LocalStorage().init();
+  await DB.init();
   runApp(App());
 }
