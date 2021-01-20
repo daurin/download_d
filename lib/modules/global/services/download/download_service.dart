@@ -300,7 +300,7 @@ abstract class DownloadService {
         onReceived: (receivedLength, total) async {
           if ((DateTime.now().millisecondsSinceEpoch -
                   lastCallUpdateNotification) >
-              Duration(milliseconds: 500).inMilliseconds) {
+              Duration(milliseconds: 1000).inMilliseconds) {
             lastCallUpdateNotification = DateTime.now().millisecondsSinceEpoch;
             if (downloadTask.showNotification)
               await DownloadNotificationsService.showProgressDownload(
