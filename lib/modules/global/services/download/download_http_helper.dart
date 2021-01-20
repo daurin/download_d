@@ -82,10 +82,14 @@ class DownloadHttpHelper {
         ioSink.add(bytes);
 
         if (limitBandwidth != null) {
-          if (receivedInOneSeconds >= limitBandwidth.inBytes && !requestIsPaused) {
+          if (receivedInOneSeconds >= limitBandwidth.inBytes &&
+              !requestIsPaused) {
             // throw Exception('cancel')
-            // responseSubscription.pause();
-            response.detachSocket();
+            // responseSubscription.pause()
+            print('pausa');
+            responseSubscription?.cancel();
+            responseSubscription = null;
+            // response.detachSocket();
             request.abort();
             requestIsPaused = true;
           }
@@ -101,10 +105,15 @@ class DownloadHttpHelper {
           }
         }
         if (onProgress != null) {
-          int progress = (received * 100) ~/ contentLength;
-          if (lastProgress != progress) {
-            onProgress(progress);
-            lastProgress = progress;
+          if (lastReceived != received) {
+            if ((DateTime.now().millisecondsSinceEpoch - lastCallOnReceibed) >
+                onReceibedDelayCall.inMilliseconds) {
+              int progress = (received * 100) ~/ contentLength;
+              if (lastProgress != progress) {
+                onProgress(progress);
+                lastProgress = progress;
+              }
+            }
           }
         }
       };
@@ -139,12 +148,10 @@ class DownloadHttpHelper {
         if (limitBandwidth != null) {
           if (requestIsPaused) {
             requestIsPaused = false;
-
-            responseSubscription?.cancel();
-            responseSubscription = null;
             downloadedBytes = await file.length();
-            received = downloadedBytes;
+            // received = downloadedBytes;
             request = await httpClient.getUrl(Uri.parse(url));
+            print('resume');
             request.headers
                 .add('Range', 'bytes=' + downloadedBytes.toString() + '-');
             if (headers != null) {
@@ -152,7 +159,7 @@ class DownloadHttpHelper {
                 request.headers.add(key, value);
               });
             }
-
+            
             response = await request.close();
             // contentLength = response.headers.contentLength;
             // contentLength += downloadedBytes;

@@ -316,6 +316,7 @@ abstract class DownloadService {
         },
         onSpeedDownloadChange: (size) {
           lastSpeedDownload = size;
+          print(size.format());
         },
         onComplete: () async {
           await DownloadTaskRepository().update(
