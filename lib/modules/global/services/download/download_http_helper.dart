@@ -25,13 +25,12 @@ class DownloadHttpHelper {
     bool resume = true,
     DataSize limitBandwidth,
     Map<String, dynamic> headers,
-    void Function(DataSize receivedLength,DataSize contentLength) onReceived,
+    void Function(DataSize receivedLength, DataSize contentLength) onReceived,
     void Function(DataSize byteInSeconds) onSpeedDownloadChange,
     void Function(int) onProgress,
     void Function() onComplete,
-    Duration onReceibedDelayCall=const Duration(milliseconds: 200),
+    Duration onReceibedDelayCall = const Duration(milliseconds: 200),
   }) async {
-
     HttpClient httpClient = new HttpClient();
     HttpClientRequest request;
     IOSink ioSink;
@@ -83,10 +82,10 @@ class DownloadHttpHelper {
         ioSink.add(bytes);
 
         if (limitBandwidth != null) {
-          if (receivedInOneSeconds >= limitBandwidth.inBytes) {
+          if (receivedInOneSeconds >= limitBandwidth.inBytes && !requestIsPaused) {
             // throw Exception('cancel')
             // responseSubscription.pause();
-            await response.detachSocket();
+            response.detachSocket();
             request.abort();
             requestIsPaused = true;
           }
@@ -96,7 +95,8 @@ class DownloadHttpHelper {
           if (lastReceived != received) {
             if ((DateTime.now().millisecondsSinceEpoch - lastCallOnReceibed) >
                 onReceibedDelayCall.inMilliseconds)
-              onReceived( DataSize(bytes:received),DataSize(bytes: contentLength));
+              onReceived(
+                  DataSize(bytes: received), DataSize(bytes: contentLength));
             lastReceived = received;
           }
         }
@@ -109,7 +109,7 @@ class DownloadHttpHelper {
         }
       };
       void Function() onDone = () {
-        onReceived( DataSize(bytes:received),DataSize(bytes: contentLength));
+        onReceived(DataSize(bytes: received), DataSize(bytes: contentLength));
         ioSink?.close();
         timerOneSecond.cancel();
         httpClient.close();
@@ -139,13 +139,14 @@ class DownloadHttpHelper {
         if (limitBandwidth != null) {
           if (requestIsPaused) {
             requestIsPaused = false;
-            
+
             responseSubscription?.cancel();
             responseSubscription = null;
             downloadedBytes = await file.length();
             received = downloadedBytes;
             request = await httpClient.getUrl(Uri.parse(url));
-            request.headers.add('Range', 'bytes=' + downloadedBytes.toString() + '-');
+            request.headers
+                .add('Range', 'bytes=' + downloadedBytes.toString() + '-');
             if (headers != null) {
               headers.forEach((key, value) {
                 request.headers.add(key, value);
