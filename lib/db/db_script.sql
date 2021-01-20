@@ -14,7 +14,10 @@ CREATE TABLE IF NOT EXISTS "DOWNLOAD_TASK"(
     "mime_type" TEXT NOT NULL,
     "index" INTEGER NULL,
     "created_at" NUMERIC NOT NULL,
-    "completed_at" NUMERIC NULL
+    "completed_at" NUMERIC NULL,
+    "limit_bandwidth" INTEGER NULL,
+    "duration" INTEGER NULL,
+    "thumbnail_url" TEXT NULL
 );
 
 CREATE TABLE IF NOT EXISTS "DOWNLOAD_GROUP_TASK"(

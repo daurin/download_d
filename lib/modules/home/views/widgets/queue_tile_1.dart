@@ -1,5 +1,6 @@
-import 'package:download_d/modules/global/services/download_service/data_size.dart';
-import 'package:download_d/modules/global/services/download_service/models/download_task_status.dart';
+import 'package:download_d/modules/global/services/download/data_size.dart';
+import 'package:download_d/modules/global/services/download/models/download_task_status.dart';
+import 'package:download_d/modules/global/views/widgets/wrap_circular_progress_bar.dart';
 import 'package:flutter/material.dart';
 
 class QueueTile1 extends StatelessWidget {
@@ -11,6 +12,7 @@ class QueueTile1 extends StatelessWidget {
   final int speedDownload;
   final bool showLinearProgress;
   final bool showCircularProgress;
+  final void Function() onTapLeading;
 
   const QueueTile1({
     Key key,
@@ -22,6 +24,7 @@ class QueueTile1 extends StatelessWidget {
     this.speedDownload,
     this.showLinearProgress = true,
     this.showCircularProgress = false,
+    this.onTapLeading,
   }) : super(key: key);
 
   @override
@@ -71,7 +74,7 @@ class QueueTile1 extends StatelessWidget {
               leading: Container(
                 height: 45,
                 width: 45,
-                child: _wrapCircularProgressBar(
+                child: WrapCircularProgressBar(
                   enable: showCircularProgress,
                   value: progress*0.01,
                   child: RawMaterialButton(
@@ -82,7 +85,7 @@ class QueueTile1 extends StatelessWidget {
                       Icons.play_arrow_rounded,
                       color: Theme.of(context).canvasColor,
                     ),
-                    onPressed: () {},
+                    onPressed: onTapLeading,
                   ),
                 ),
               ),
@@ -113,39 +116,4 @@ class QueueTile1 extends StatelessWidget {
     );
   }
 
-  Widget _wrapCircularProgressBar({
-    bool enable = true,
-    double value,
-    Widget child,
-  }) {
-    double strokeWidth=4;
-
-    return LayoutBuilder(
-      builder: (BuildContext context, BoxConstraints constraints) {
-        if(!enable) return child;
-        return Stack(
-          children: [
-            SizedBox(
-                height: constraints.maxHeight,
-                width: constraints.maxWidth,
-                child: CircularProgressIndicator(
-                  strokeWidth: strokeWidth,
-                  value: value,
-                ),
-              ),
-            if (child != null)
-              Positioned.fill(
-                child: Center(
-                  child: SizedBox(
-                    height: constraints.maxHeight-strokeWidth+0.5,
-                    width: constraints.maxWidth-strokeWidth+0.5,
-                    child: child,
-                  ),
-                ),
-              ),
-          ],
-        );
-      },
-    );
-  }
 }

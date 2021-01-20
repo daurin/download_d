@@ -1,4 +1,4 @@
-import 'package:download_d/modules/global/services/download_service/models/download_task_status.dart';
+import 'package:download_d/modules/global/services/download/models/download_task_status.dart';
 import 'package:download_d/modules/home/views/widgets/queue_tile_1.dart';
 import 'package:flutter/material.dart';
 

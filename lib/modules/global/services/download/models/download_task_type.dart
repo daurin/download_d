@@ -19,7 +19,7 @@ class DownloadTaskType {
 
   int get _valueToInt{
     switch (_value) {
-      case 'photo': return 0;
+      case 'image': return 0;
       case 'video': return 1;
       case 'audio': return 2;
       default: return null;
@@ -32,7 +32,7 @@ class DownloadTaskType {
 
   // static DownloadTaskStatus from(String value) => DownloadTaskStatus(value);
 
-  static const photo = const DownloadTaskType('photo');
+  static const image = const DownloadTaskType('image');
   static const video = const DownloadTaskType('video');
   static const audio = const DownloadTaskType('audio');
 }

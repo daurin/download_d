@@ -1,4 +1,5 @@
-import 'package:download_d/modules/global/services/download_service/download_service.dart';
+import 'package:download_d/modules/global/services/download/data_size.dart';
+import 'package:download_d/modules/global/services/download/download_service.dart';
 import 'package:download_d/modules/home/views/fragments/queue_fragment.dart';
 import 'package:ext_storage/ext_storage.dart';
 import 'package:flutter/material.dart';
@@ -18,7 +19,7 @@ class _HomePageState extends State<HomePage> {
     super.initState();
 
     WidgetsBinding.instance.addPostFrameCallback((timeStamp) async {
-      await DownloadService.start();
+      await DownloadService.start(resume: true);
     });
 
     _selectedFragment = 0;
@@ -82,10 +83,32 @@ class _HomePageState extends State<HomePage> {
 
             String downloadDir = await ExtStorage.getExternalStorageDirectory();
             downloadDir +='/'+ ExtStorage.DIRECTORY_DOWNLOADS;
-            DownloadService.addTask(
-              id: 'task3',
-              url: file20mb,
+            await DownloadService.addTask(
+              id: '1',
+              url: file5mb,
+              fileName: '5MB(1).zip',
               saveDir: '$downloadDir',
+              limitBandwidth: DataSize(
+                kilobytes: 400,
+              ),
+            );
+            await DownloadService.addTask(
+              id: '2',
+              url: file5mb,
+              fileName: '5MB(2).zip',
+              saveDir: '$downloadDir',
+              limitBandwidth: DataSize(
+                kilobytes: 500,
+              ),
+            );
+            await DownloadService.addTask(
+              id: '3',
+              url: file5mb,
+              fileName: '5MB(3).zip',
+              saveDir: '$downloadDir',
+              // limitBandwidth: DataSize(
+              //   kilobytes: 40,
+              // ),
             );
           },
         ),

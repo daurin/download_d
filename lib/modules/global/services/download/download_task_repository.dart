@@ -2,8 +2,10 @@ import 'dart:convert';
 import 'package:download_d/db/DB.dart';
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
+import 'data_size.dart';
 import 'models/download_task.dart';
 import 'models/download_task_status.dart';
+import 'models/download_task_type.dart';
 
 class DownloadTaskRepository {
   static final DownloadTaskRepository _singleton =
@@ -37,13 +39,16 @@ class DownloadTaskRepository {
     Map<String, dynamic> headers,
     @required String saveDir,
     @required String fileName,
-    @required int size,
+    @required DataSize size,
     bool resumable = false,
     String displayName,
-    bool showNotification=true,
+    bool showNotification = true,
     @required String mimeType,
     int index,
+    DataSize limitBandwidth,
     DateTime completedAt,
+    Duration duration,
+    String thumbnailUrl,
   }) async {
     final db = DB.db;
 
@@ -57,16 +62,19 @@ class DownloadTaskRepository {
         'headers': jsonEncode(headers),
         'save_dir': saveDir,
         'file_name': fileName,
-        'size': size,
+        'size': size.inBytes,
         'resumable': resumable ? 1 : 0,
         'display_name': displayName ?? fileName,
-        'show_notification' : showNotification ? 1 : 0,
+        'show_notification': showNotification ? 1 : 0,
         'mime_type': mimeType,
         'index': index,
+        'limit_bandwidth': limitBandwidth?.inBytes??null,
         'created_at': DateFormat(dataFormat).format(DateTime.now()).toString(),
         'completed_at': completedAt != null
             ? DateFormat(dataFormat).format(completedAt).toString()
             : null,
+        'duration': duration != null ? duration.inMilliseconds : null,
+        'thumbnail_url': thumbnailUrl,
       },
     );
   }
@@ -79,7 +87,7 @@ class DownloadTaskRepository {
     Map<String, dynamic> headers,
     String saveDir,
     String fileName,
-    int size,
+    DataSize size,
     bool resumable,
     String displayName,
     bool showNotification,
@@ -88,12 +96,15 @@ class DownloadTaskRepository {
     Map<String, dynamic> whereEquals,
     Map<String, dynamic> whereDistinct,
     int index,
+    DataSize limitBandwidth,
     bool canResume,
     DateTime completedAt,
+    Duration duration,
+    String thumbnailUrl,
   }) async {
     final db = DB.db;
 
-    String where='';
+    String where = '';
 
     Map<String, dynamic> values = {};
     fieldsIgnoreNull = fieldsIgnoreNull ?? [];
@@ -105,32 +116,36 @@ class DownloadTaskRepository {
     if (headers != null) values.addAll({'headers': jsonEncode(headers)});
     if (saveDir != null) values.addAll({'save_dir': saveDir});
     if (fileName != null) values.addAll({'file_name': fileName});
-    if (size != null) values.addAll({'size': size});
+    if (size != null) values.addAll({'size': size.inBytes});
     if (resumable != null) values.addAll({'resumable': resumable ? 1 : 0});
     if (displayName != null) values.addAll({'display_name': displayName});
-    if (showNotification != null) values.addAll({'show_notification': showNotification ? 1 : 0});
+    if (showNotification != null)
+      values.addAll({'show_notification': showNotification ? 1 : 0});
     if (mimeType != null) values.addAll({'type': mimeType});
     if (status != null) values.addAll({'status': status.value});
     if (index != null) values.addAll({'index': index});
+    if (limitBandwidth != null)
+      values.addAll({'limit_bandwidth': limitBandwidth?.inBytes??null});
     if (completedAt != null)
       values.addAll({
         'completed_at': DateFormat(dataFormat).format(completedAt).toString()
       });
+    if (duration != null) values.addAll({'duration': duration.inMilliseconds});
+    if (thumbnailUrl != null) values.addAll({'thumbnail_url': thumbnailUrl});
 
-      where =(whereEquals ?? {}).length == 0
-            ? ''
-            : whereEquals.entries
-                .map<String>((MapEntry item) => '${item.key} = ?')
-                .toList()
-                .join(', ');
+    where = (whereEquals ?? {}).length == 0
+        ? ''
+        : whereEquals.entries
+            .map<String>((MapEntry item) => '${item.key} = ?')
+            .toList()
+            .join(', ');
 
-    where+=(whereDistinct ?? {}).length == 0
-            ? ''
-            : whereDistinct.entries
-                .map<String>((MapEntry item) => '${item.key} != ?')
-                .toList()
-                .join(', ');
-
+    where += (whereDistinct ?? {}).length == 0
+        ? ''
+        : whereDistinct.entries
+            .map<String>((MapEntry item) => '${item.key} != ?')
+            .toList()
+            .join(', ');
 
     print(where);
 
@@ -158,25 +173,46 @@ class DownloadTaskRepository {
 
   Future<List<DownloadTask>> find({
     int offset = 0,
-    int limit = 10,
+    int limit,
+    List<DownloadTaskStatus> statusAnd,
+    List<DownloadTaskStatus> statusOr,
     DateTime createdAtGt,
+    DownloadTaskType type,
   }) async {
     final db = DB.db;
     String query = '';
-    List<String> where = [];
-    if (createdAtGt != null)
-      query = "SELECT * FROM `$tableName` " +
-          "${where.length == 0 ? '' : 'WHERE'} ${where.join(' AND ')} " +
-          "ORDER created_at DESC LIMIT $limit OFFSET $offset;";
+    List<String> whereAnd = [];
+    List<String> whereOr = [];
+    if (statusAnd != null) {
+      statusAnd.forEach((element) {
+        whereAnd.add("status='${element.value}'");
+      });
+    }
+    if (statusOr != null) {
+      statusOr.forEach((element) {
+        whereOr.add("status='${element.value}'");
+      });
+    }
+    if (type != null) {
+      whereAnd.add("mime_type LIKE '%${type.value}%'");
+    }
 
-    print(query);
+    query = "SELECT * FROM `$tableName` ";
+    if (whereAnd.length > 0){
+      if(!query.contains('WHERE'))query+='WHERE ';
+      query +="${whereAnd.join(' AND ')} ";
+    }
+    if (whereOr.length > 0){
+      if(!query.contains('WHERE'))query+='WHERE ';
+      query += "${whereOr.join(' OR ')} ";
+    }
+    query += "ORDER BY created_at DESC LIMIT ${limit ?? -1} OFFSET $offset;";
 
     List<Map<String, dynamic>> res = await db.rawQuery(query);
-    print(res);
-    List<DownloadTask> rooms = res
+    List<DownloadTask> task = res
         .map((item) => DownloadTask.fromMap(Map<String, dynamic>.from(item)))
         .toList();
-    return rooms;
+    return task;
   }
 
   Future<DownloadTask> findById(int id) {

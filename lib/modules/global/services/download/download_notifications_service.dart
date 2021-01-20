@@ -1,6 +1,6 @@
-import 'package:download_d/modules/global/services/download_service/data_size.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'data_size.dart';
 
 abstract class DownloadNotificationsService {
   static bool _initialized = false;
@@ -15,6 +15,7 @@ abstract class DownloadNotificationsService {
     await _flutterLocalNotificationsPlugin.initialize(
       InitializationSettings(
         android: AndroidInitializationSettings('drawable/nofication_icon'),
+        // android: AndroidInitializationSettings('drawable/notify_icon'),
       ),
     );
     _initialized = true;
@@ -49,18 +50,31 @@ abstract class DownloadNotificationsService {
   }
 
   static Future<void> showProgressDownload({
+    @required notificationId,
     @required String title,
-    @required int size,
-    int sizeDownload = 0,
+    @required DataSize size,
+    DataSize sizeDownload,
+    DataSize speedDownload,
     AndroidNotificationChannelAction channelAction =
         AndroidNotificationChannelAction.createIfNotExists,
+        bool setAsGroupSummary=false,
   }) async {
-    int progress = (sizeDownload * 100) ~/ size;
+    if(sizeDownload==null)sizeDownload=DataSize.zero;
+    int progress=0;
+    if((sizeDownload?.inBytes??0)>0){
+      progress=(sizeDownload.inBytes * 100) ~/ size.inBytes;
+    }
+
+    String subtitle='';
+    if((size?.inBytes??0)>0 && (sizeDownload?.inBytes??0)>0){
+      subtitle+='$progress % (${sizeDownload.format()}/${size.format()}) ';
+      if((speedDownload?.inBytes??0)>0)subtitle+="${speedDownload.format()}/s";
+    }
 
     await _flutterLocalNotificationsPlugin.show(
-      _notificationId,
+      notificationId,
       title,
-      '$progress % (${DataSize.formatBytes(sizeDownload)}/${DataSize.formatBytes(size)})',
+      subtitle,
       NotificationDetails(
         android: AndroidNotificationDetails(
           'download_d_task_channel',
@@ -69,8 +83,8 @@ abstract class DownloadNotificationsService {
           showProgress: true,
           maxProgress: 100,
           progress: progress,
-          // groupKey: 'downloadsssss',
-          // setAsGroupSummary: true,
+          // groupKey: 'download_task',
+          // setAsGroupSummary: setAsGroupSummary,
           channelAction: channelAction,
           importance: Importance.defaultImportance,
           priority: Priority.defaultPriority,
@@ -85,7 +99,7 @@ abstract class DownloadNotificationsService {
   }
 
   static Future<void> showFinishedDownload({
-    int idNotification=2,
+    @required int idNotification,
     @required String displayName,
   }) async {
     await _flutterLocalNotificationsPlugin.show(
@@ -97,7 +111,7 @@ abstract class DownloadNotificationsService {
           'downloads',
           _channelName,
           _channelDescription,
-          groupKey: 'downloads',
+          groupKey: 'download_finished',
           setAsGroupSummary: false,
           channelAction: AndroidNotificationChannelAction.createIfNotExists,
           importance: Importance.defaultImportance,
@@ -110,7 +124,11 @@ abstract class DownloadNotificationsService {
     );
   }
 
-  static Future<void> cancel() async {
-    await _flutterLocalNotificationsPlugin.cancel(_notificationId);
+  static Future<void> cancel(int notificationId) async {
+    await _flutterLocalNotificationsPlugin.cancel(notificationId);
+  }
+
+  static Future<void> cancelAll() async {
+    await _flutterLocalNotificationsPlugin.cancelAll();
   }
 }
