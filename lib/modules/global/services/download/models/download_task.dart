@@ -1,7 +1,6 @@
 import 'dart:convert';
-import 'package:download_d/modules/global/services/download/data_size.dart';
 import 'package:intl/intl.dart';
-
+import 'data_size.dart';
 import '../download_task_repository.dart';
 import 'download_task_status.dart';
 import 'download_task_type.dart';
@@ -74,12 +73,10 @@ class DownloadTask {
           : null,
       createdAt: map['created_at'] == null
           ? null
-          : DateFormat(DownloadTaskRepository.dataFormat)
-              .parse(map['created_at']),
+          : DateTime.fromMillisecondsSinceEpoch(int.parse(map['created_at'].toString())),
       completedAt: map['completed_at'] == null
           ? null
-          : DateFormat(DownloadTaskRepository.dataFormat)
-              .parse(map['completed_at']),
+          : DateTime.fromMillisecondsSinceEpoch(int.parse(map['completed_at'].toString())),
       duration: map['duration'] != null
           ? Duration(milliseconds: int.parse(map['duration'].toString()))
           : null,

@@ -68,4 +68,3 @@ class DataSize{
   int get inKilobytes => _bytes~/1000;
 
 }
-

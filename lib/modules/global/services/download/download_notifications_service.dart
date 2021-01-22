@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'data_size.dart';
+
+import 'models/data_size.dart';
 
 abstract class DownloadNotificationsService {
   static bool _initialized = false;

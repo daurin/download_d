@@ -1,5 +1,5 @@
-import 'package:download_d/modules/global/services/download/data_size.dart';
 import 'package:download_d/modules/global/services/download/download_service.dart';
+import 'package:download_d/modules/global/services/download/models/data_size.dart';
 import 'package:download_d/modules/home/views/fragments/queue_fragment.dart';
 import 'package:ext_storage/ext_storage.dart';
 import 'package:flutter/material.dart';
@@ -20,6 +20,7 @@ class _HomePageState extends State<HomePage> {
 
     WidgetsBinding.instance.addPostFrameCallback((timeStamp) async {
       await DownloadService.start(resume: true);
+      setState(() {});
     });
 
     _selectedFragment = 0;
@@ -82,7 +83,7 @@ class _HomePageState extends State<HomePage> {
                 file100mb = 'http://212.183.159.230/100MB.zip';
 
             String downloadDir = await ExtStorage.getExternalStorageDirectory();
-            downloadDir +='/'+ ExtStorage.DIRECTORY_DOWNLOADS;
+            downloadDir += '/' + ExtStorage.DIRECTORY_DOWNLOADS;
             await DownloadService.addTask(
               id: '1',
               url: file5mb,
@@ -110,6 +111,7 @@ class _HomePageState extends State<HomePage> {
               //   kilobytes: 40,
               // ),
             );
+            await DownloadService.resumeEnqueue();
           },
         ),
         bottomNavigationBar: BottomNavigationBar(

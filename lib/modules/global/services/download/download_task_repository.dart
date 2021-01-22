@@ -2,7 +2,9 @@ import 'dart:convert';
 import 'package:download_d/db/DB.dart';
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
-import 'data_size.dart';
+import 'package:path/path.dart';
+
+import 'models/data_size.dart';
 import 'models/download_task.dart';
 import 'models/download_task_status.dart';
 import 'models/download_task_type.dart';
@@ -69,9 +71,9 @@ class DownloadTaskRepository {
         'mime_type': mimeType,
         'index': index,
         'limit_bandwidth': limitBandwidth?.inBytes??null,
-        'created_at': DateFormat(dataFormat).format(DateTime.now()).toString(),
+        'created_at': DateTime.now().millisecondsSinceEpoch,
         'completed_at': completedAt != null
-            ? DateFormat(dataFormat).format(completedAt).toString()
+            ? completedAt.millisecondsSinceEpoch
             : null,
         'duration': duration != null ? duration.inMilliseconds : null,
         'thumbnail_url': thumbnailUrl,
@@ -128,7 +130,7 @@ class DownloadTaskRepository {
       values.addAll({'limit_bandwidth': limitBandwidth?.inBytes??null});
     if (completedAt != null)
       values.addAll({
-        'completed_at': DateFormat(dataFormat).format(completedAt).toString()
+        'completed_at': completedAt.millisecondsSinceEpoch,
       });
     if (duration != null) values.addAll({'duration': duration.inMilliseconds});
     if (thumbnailUrl != null) values.addAll({'thumbnail_url': thumbnailUrl});
@@ -183,6 +185,9 @@ class DownloadTaskRepository {
     String query = '';
     List<String> whereAnd = [];
     List<String> whereOr = [];
+    if (type != null) {
+      whereAnd.add("mime_type LIKE '%${type.value}%'");
+    }
     if (statusAnd != null) {
       statusAnd.forEach((element) {
         whereAnd.add("status='${element.value}'");
@@ -192,9 +197,6 @@ class DownloadTaskRepository {
       statusOr.forEach((element) {
         whereOr.add("status='${element.value}'");
       });
-    }
-    if (type != null) {
-      whereAnd.add("mime_type LIKE '%${type.value}%'");
     }
 
     query = "SELECT * FROM `$tableName` ";

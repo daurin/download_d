@@ -1,13 +1,15 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:async/async.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_background/flutter_background.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:mime/mime.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'data_size.dart';
 import 'download_http_helper.dart';
 import 'download_notifications_service.dart';
+import 'models/active_download.dart';
+import 'models/data_size.dart';
 import 'download_preferences_repository.dart';
 import 'download_task_repository.dart';
 import 'models/download_task.dart';
@@ -22,7 +24,7 @@ abstract class DownloadService {
   static StreamController<List<DownloadTask>> _enqueuedStreamController;
   static StreamController<List<DownloadTask>> _runningStreamController;
 
-  static List<Map<String, dynamic>> _activeTasks = [];
+  static List<ActiveDownload> _activeTasks = [];
 
   static StreamController<List<DownloadTask>> _activeTaskStreamController;
 
@@ -33,7 +35,7 @@ abstract class DownloadService {
   static DownloadPreferencesRepository get preferences => _downloadPreferences;
 
   static Stream<List<DownloadTask>> get activeTaskStream =>
-      _activeTaskStreamController.stream;
+      _activeTaskStreamController?.stream;
 
   static String file5mb = 'http://212.183.159.230/5MB.zip';
   static String file10mb = 'http://212.183.159.230/10MB.zip';
@@ -55,6 +57,27 @@ abstract class DownloadService {
     if (!await Permission.storage.isGranted) {
       await Permission.storage.request();
     }
+
+    List<DownloadTask> downloadsActive = await DownloadTaskRepository().find(
+      statusOr: [
+        DownloadTaskStatus.running,
+        DownloadTaskStatus.enqueued,
+        DownloadTaskStatus.paused,
+        DownloadTaskStatus.failed,
+      ],
+    );
+
+    downloadsActive.forEach((element) {
+      if (element.status == DownloadTaskStatus.running) {
+        element = element.copyWith(
+          status: DownloadTaskStatus.enqueued,
+        );
+      }
+      _addActiveTask(
+        model: element,
+      );
+    });
+    _notifyActiveTaskStream();
 
     if (resume) await resumeEnqueue();
   }
@@ -86,17 +109,30 @@ abstract class DownloadService {
   }
 
   static Future<void> resumeEnqueue() async {
-    List<DownloadTask> downloadsActive = await DownloadTaskRepository().find(
-      statusOr: [
-        DownloadTaskStatus.running,
+    // List<DownloadTask> downloadsActive = await DownloadTaskRepository().find(
+    //   statusOr: [
+    //     DownloadTaskStatus.running,
+    //     DownloadTaskStatus.enqueued,
+    //     DownloadTaskStatus.paused,
+    //     DownloadTaskStatus.failed,
+    //   ],
+    // );
+    List<ActiveDownload> activeTask = _activeTasks.where((element) {
+      if ([
         DownloadTaskStatus.enqueued,
         DownloadTaskStatus.paused,
-      ],
-    );
+        DownloadTaskStatus.failed,
+      ].contains(element.task.status)) {
+        return true;
+      }
+      return false;
+    }).toList();
 
-    downloadsActive.forEach((element) async {
-      await resume(element.idCustom);
-    });
+    activeTask.sort((a, b) => b.task.createdAt.compareTo(a.task.createdAt));
+
+    for (var item in activeTask) {
+      await resume(item.task.idCustom);
+    }
   }
 
   static Future<void> addTask({
@@ -105,7 +141,7 @@ abstract class DownloadService {
     @required String saveDir,
     String fileName,
     Map<String, dynamic> headers,
-    bool autoStart = true,
+    bool autoStart = false,
     int index,
     DataSize limitBandwidth,
     String displayName,
@@ -152,66 +188,107 @@ abstract class DownloadService {
     } on DatabaseException catch (err) {
       print(err);
       if (autoStart) await resume(id);
+    } catch (err) {
+      print(err);
     }
+    DownloadTask task = await DownloadTaskRepository().findByIdCustom(id);
+    _addActiveTask(
+      model: task.copyWith(
+        status: DownloadTaskStatus.enqueued,
+      ),
+    );
   }
 
   static Future<void> pause(String idTask) async {
+    DownloadTask task = await DownloadTaskRepository().findByIdCustom(idTask);
+    ActiveDownload activeDownload = _getActiveTask(idTask);
+    if (activeDownload?.changingStatus ?? false) return;
+    _addActiveTask(
+      model: task.copyWith(
+        status: DownloadTaskStatus.paused,
+        sizeDownloaded: DataSize(bytes: await File(task.path).length()),
+      ),
+      changingStatus: true,
+    );
+    await activeDownload.cancelableOperation.cancel();
+    await DownloadTaskRepository()
+        .update(status: DownloadTaskStatus.paused, whereEquals: {
+      'id_custom': idTask,
+    });
+    _addActiveTask(
+      model: task.copyWith(
+        status: DownloadTaskStatus.paused,
+        sizeDownloaded: DataSize(bytes: await File(task.path).length()),
+      ),
+      changingStatus: false,
+    );
+    activeDownload.statusStreamController.add(DownloadTaskStatus.paused);
     // ignore: close_sinks
-    HttpClientRequest request = _getActiveTaskRequest(idTask);
-    if (request != null) {
-      request.abort();
-      DownloadTask task = _getActiveTaskModel(idTask);
-      if (task != null) {
-        _updateActiveTask(
-          idTask,
-          model: task.copyWith(
-            status: DownloadTaskStatus.paused,
-          ),
-        );
-      }
-      await DownloadTaskRepository().update(
-        status: DownloadTaskStatus.complete,
-        completedAt: DateTime.now(),
-        whereEquals: {
-          'id_custom': idTask,
-        },
-        whereDistinct: {
-          'status': DownloadTaskStatus.canceled.value,
-        },
-      );
-    }
+    // HttpClientRequest request = _getActiveTaskRequest(idTask);
+    // if (request != null) {
+    //   request.abort();
+    //   DownloadTask task = _getActiveTaskModel(idTask);
+    //   if (task != null) {
+    //     _addActiveTask(
+    //       model: task.copyWith(
+    //         status: DownloadTaskStatus.paused,
+    //       ),
+    //     );
+    //   }
+    //   await DownloadTaskRepository().update(
+    //     status: DownloadTaskStatus.complete,
+    //     completedAt: DateTime.now(),
+    //     whereEquals: {
+    //       'id_custom': idTask,
+    //     },
+    //     whereDistinct: {
+    //       'status': DownloadTaskStatus.canceled.value,
+    //     },
+    //   );
+    // }
   }
 
   static Future<void> cancel(
     String idTask, {
     bool clearHistory = false,
   }) async {
-    HttpClientRequest request = _getActiveTaskRequest(idTask);
-    if (request != null) {
-      request.close();
-      if (clearHistory) {
-        await DownloadTaskRepository().deleteByCustomId(idTask);
-      } else {
-        await DownloadTaskRepository().update(
-          status: DownloadTaskStatus.complete,
-          completedAt: DateTime.now(),
-          whereEquals: {
-            'id_custom': idTask,
-          },
-          whereDistinct: {
-            'status': DownloadTaskStatus.canceled,
-          },
-        );
-      }
-    }
-    _removeActiveTask(idTask);
+    DownloadTask task = await DownloadTaskRepository().findByIdCustom(idTask);
+    _addActiveTask(
+      model: task,
+    );
+    await DownloadTaskRepository().update(
+      status: DownloadTaskStatus.canceled,
+      whereEquals: {},
+      whereDistinct: {
+        'status': DownloadTaskStatus.canceled,
+      },
+    );
+    await _removeActiveTask(idTask);
+    _notifyActiveTaskStream();
+    // HttpClientRequest request = _getActiveTaskRequest(idTask);
+    // if (request != null) {
+    //   request.close();
+    //   if (clearHistory) {
+    //     await DownloadTaskRepository().deleteByCustomId(idTask);
+    //   } else {
+    //     await DownloadTaskRepository().update(
+    //       status: DownloadTaskStatus.complete,
+    //       completedAt: DateTime.now(),
+    //       whereEquals: {
+    //         'id_custom': idTask,
+    //       },
+    //       whereDistinct: {
+    //         'status': DownloadTaskStatus.canceled,
+    //       },
+    //     );
+    //   }
+    // }
+    // _removeActiveTask(idTask);
   }
 
   static Future<void> cancelAll({bool clearHistory = false}) async {
     _activeTasks.forEach((element) async {
-      String id = (element['model'] as DownloadTask).idCustom;
-      HttpClientRequest request = element['request'];
-      request.close();
+      String id = element.task.idCustom;
 
       if (clearHistory) {
         await DownloadTaskRepository().deleteByCustomId(id);
@@ -231,8 +308,19 @@ abstract class DownloadService {
   }
 
   static Future<bool> resume(String idTask) async {
+    ActiveDownload activeDownload = _getActiveTask(idTask);
+    if (activeDownload != null) {
+      _addActiveTask(
+        model: activeDownload.task,
+        changingStatus: true,
+      );
+    }
     if (!await Permission.storage.isGranted) {
       await Permission.storage.request();
+    }
+
+    if (activeDownload?.changingStatus ?? false) {
+      return false;
     }
 
     try {
@@ -240,10 +328,14 @@ abstract class DownloadService {
           await DownloadTaskRepository().findByIdCustom(idTask);
       int lastCallUpdateNotification = DateTime.now().millisecondsSinceEpoch;
 
-      List<Map> runningTask = _activeTasks
-          .where((e) =>
-              (e['model'] as DownloadTask).status == DownloadTaskStatus.running)
-          .toList();
+      _addActiveTask(
+        model: activeDownload.task,
+        changingStatus: true,
+      );
+
+      List<ActiveDownload> runningTask = _activeTasks.where((e) {
+        return (e.task.status == DownloadTaskStatus.running) && !(e.changingStatus??false);
+      }).toList();
 
       if (runningTask.length >= _downloadPreferences.simultaneousDownloads) {
         if (downloadTask.status != DownloadTaskStatus.enqueued) {
@@ -257,13 +349,17 @@ abstract class DownloadService {
             status: DownloadTaskStatus.enqueued,
           ),
         );
+        _notifyActiveTaskStream();
         return false;
       }
-      _addActiveTask(
-        model: downloadTask.copyWith(
-          status: DownloadTaskStatus.running,
-        ),
-      );
+
+      _getActiveTask(idTask)
+          .statusStreamController
+          .add(DownloadTaskStatus.running);
+      // if(idTask=='2')_getActiveTask(idTask).receivedStreamController.stream.listen((event) {
+      //   print(event);
+      // });
+      _notifyActiveTaskStream();
 
       if (await File(downloadTask.path).exists()) {
         if (await File(downloadTask.path).length() >=
@@ -277,6 +373,9 @@ abstract class DownloadService {
             .update(status: DownloadTaskStatus.running, whereEquals: {
           'id_custom': idTask,
         });
+        _getActiveTask(idTask).statusStreamController.add(
+              DownloadTaskStatus.running,
+            );
       }
 
       await DownloadNotificationsService.showProgressDownload(
@@ -291,53 +390,97 @@ abstract class DownloadService {
       DataSize lastSpeedDownload = DataSize.zero;
 
       // ignore: close_sinks
-      await DownloadHttpHelper.download(
-        url: downloadTask.url,
-        savePath: downloadTask.saveDir + '/' + downloadTask.fileName,
-        headers: downloadTask.headers,
-        resume: downloadTask.resumable,
-        limitBandwidth: downloadTask.limitBandwidth,
-        onReceived: (receivedLength, total) async {
-          if ((DateTime.now().millisecondsSinceEpoch -
-                  lastCallUpdateNotification) >
-              Duration(milliseconds: 1000).inMilliseconds) {
-            lastCallUpdateNotification = DateTime.now().millisecondsSinceEpoch;
-            if (downloadTask.showNotification)
-              await DownloadNotificationsService.showProgressDownload(
-                notificationId: downloadTask.id,
-                title: downloadTask.displayName,
-                sizeDownload: receivedLength,
-                size: total,
-                speedDownload: lastSpeedDownload,
-                channelAction: AndroidNotificationChannelAction.update,
-                setAsGroupSummary: false,
-              );
-          }
-        },
-        onSpeedDownloadChange: (size) {
-          lastSpeedDownload = size;
-          print(size.format());
-        },
-        onComplete: () async {
-          await DownloadTaskRepository().update(
-            status: DownloadTaskStatus.complete,
-            completedAt: DateTime.now(),
-            whereEquals: {'id_custom': idTask},
-          );
-          _removeActiveTask(idTask);
-          await resumeEnqueue();
+      CancelableOperation<void> cancelableOperation =
+          await DownloadHttpHelper.download(
+              url: downloadTask.url,
+              savePath: downloadTask.saveDir + '/' + downloadTask.fileName,
+              headers: downloadTask.headers,
+              resume: downloadTask.resumable,
+              limitBandwidth: downloadTask.limitBandwidth,
+              onReceibedDelayCall: Duration(milliseconds: 200),
+              onReceived: (received, total) async {
+                if (!(activeDownload?.receivedStreamController?.isClosed ??
+                    false)) {
+                  activeDownload?.receivedStreamController?.add(received);
+                } else {
+                  print(activeDownload);
+                }
 
-          if (downloadTask.showNotification) {
-            await DownloadNotificationsService.cancel(downloadTask.id);
-            await DownloadNotificationsService.showFinishedDownload(
-              idNotification: downloadTask.id,
-              displayName: downloadTask.displayName,
-            );
-          }
-        },
+                if ((DateTime.now().millisecondsSinceEpoch -
+                        lastCallUpdateNotification) >
+                    Duration(milliseconds: 1000).inMilliseconds) {
+                  lastCallUpdateNotification =
+                      DateTime.now().millisecondsSinceEpoch;
+                  if (downloadTask.showNotification)
+                    await DownloadNotificationsService.showProgressDownload(
+                      notificationId: downloadTask.id,
+                      title: downloadTask.displayName,
+                      sizeDownload: received,
+                      size: total,
+                      speedDownload: lastSpeedDownload,
+                      channelAction: AndroidNotificationChannelAction.update,
+                      setAsGroupSummary: false,
+                    );
+                }
+              },
+              onSpeedDownloadChange: (size) {
+                print(size.format());
+                lastSpeedDownload = size;
+                if (!(activeDownload?.speedDownloadStreamController?.isClosed ??
+                    false))
+                  activeDownload?.speedDownloadStreamController?.add(size);
+                else {
+                  print(activeDownload);
+                }
+              },
+              onComplete: () async {
+                _getActiveTask(idTask)
+                    ?.statusStreamController
+                    ?.add(DownloadTaskStatus.complete);
+                await DownloadTaskRepository().update(
+                  status: DownloadTaskStatus.complete,
+                  completedAt: DateTime.now(),
+                  whereEquals: {'id_custom': idTask},
+                );
+                await _removeActiveTask(idTask);
+                _notifyActiveTaskStream();
+                await resumeEnqueue();
+
+                if (downloadTask.showNotification) {
+                  await DownloadNotificationsService.cancel(downloadTask.id);
+                  await DownloadNotificationsService.showFinishedDownload(
+                    idNotification: downloadTask.id,
+                    displayName: downloadTask.displayName,
+                  );
+                }
+              },
+              onError: (err) async {
+                print(err);
+                _getActiveTask(idTask)
+                    ?.statusStreamController
+                    ?.add(DownloadTaskStatus.failed);
+                await DownloadTaskRepository().update(
+                  status: DownloadTaskStatus.complete,
+                  completedAt: DateTime.now(),
+                  whereEquals: {'id_custom': idTask},
+                );
+                await resumeEnqueue();
+              });
+
+      _addActiveTask(
+        model: activeDownload.task,
+        cancelableOperation: cancelableOperation,
+        changingStatus: false,
       );
       return true;
     } catch (err) {
+      await DownloadTaskRepository().update(
+        status: DownloadTaskStatus.failed,
+        whereEquals: {'id_custom': idTask},
+      );
+      _getActiveTask(idTask)
+          .statusStreamController
+          .add(DownloadTaskStatus.failed);
       print(err);
     }
     return false;
@@ -345,8 +488,8 @@ abstract class DownloadService {
 
   static Future<void> retry(int idTask) async {}
 
-  static Future<List<DownloadTask>> getTask({
-    List<DownloadTaskStatus> status,
+  static Future<List<DownloadTask>> findTasks({
+    List<DownloadTaskStatus> statusAnd,
     int offset = 0,
     int limit,
     DownloadTaskType type,
@@ -354,7 +497,7 @@ abstract class DownloadService {
     List<DownloadTask> tasks = await DownloadTaskRepository().find(
       offset: offset,
       limit: limit,
-      statusAnd: status,
+      statusAnd: statusAnd,
       type: type,
     );
     await Future.wait(tasks.map((e) async {
@@ -370,83 +513,102 @@ abstract class DownloadService {
     return tasks;
   }
 
+  static Future<DownloadTask> findTask(String idTask) {
+    return DownloadTaskRepository().findByIdCustom(idTask);
+  }
+
+  static Future<void> deleteTask(String idTask) async {
+    await DownloadTaskRepository().deleteByCustomId(idTask);
+  }
+
   static void _addActiveTask({
     @required DownloadTask model,
-    HttpClientRequest request,
+    CancelableOperation<void> cancelableOperation,
+    bool changingStatus,
   }) {
-    List<Map<String, dynamic>> tasks = _activeTasks.where((element) {
-      DownloadTask task = element['model'];
+    List<ActiveDownload> tasks = _activeTasks.where((element) {
+      DownloadTask task = element.task;
       return task.id == model.id;
     }).toList();
 
     if (tasks.length == 0) {
-      _activeTasks.add({
-        'model': model,
-        'request': request,
-      });
+      _activeTasks.add(ActiveDownload(
+        task: model,
+        receivedStreamController: StreamController<DataSize>.broadcast(),
+        speedDownloadStreamController: StreamController<DataSize>.broadcast(),
+        statusStreamController:
+            StreamController<DownloadTaskStatus>.broadcast(),
+        cancelableOperation: cancelableOperation,
+        changingStatus: changingStatus,
+      ));
     } else {
-      Map task = tasks.firstWhere(
-          (e) => (e['model'] as DownloadTask).idCustom == model.idCustom,
-          orElse: () {});
-      if (task != null) {
-        task['model'] = model;
+      ActiveDownload activeTask = tasks.firstWhere(
+        (e) => e.task.idCustom == model.idCustom,
+        orElse: () => null,
+      );
+      if (activeTask != null) {
+        _activeTasks[_activeTasks.indexOf(activeTask)] =
+            activeTask = activeTask.copyWith(
+          task: model,
+          cancelableOperation: cancelableOperation,
+          changingStatus: changingStatus,
+        );
       }
     }
   }
 
-  static Map<String, dynamic> _getActiveTask(String idTask) {
-    Map task = _activeTasks.firstWhere(
-      (element) => (element['model'] as DownloadTask).idCustom == idTask,
+  static Future<void> _removeActiveTask(String idTask) async {
+    ActiveDownload activeTask = _activeTasks.firstWhere(
+      (e) => e.task.idCustom == idTask,
+      orElse: () => null,
+    );
+    await activeTask?.receivedStreamController?.close();
+    await activeTask?.speedDownloadStreamController?.close();
+    await activeTask?.statusStreamController?.close();
+    _activeTasks.remove(activeTask);
+  }
+
+  static ActiveDownload _getActiveTask(String idTask) {
+    ActiveDownload task = _activeTasks.firstWhere(
+      (element) => element.task.idCustom == idTask,
       orElse: () => null,
     );
     return task;
   }
 
-  static void _updateActiveTask(
-    String idTask, {
-    DownloadTask model,
-    HttpClientRequest request,
-  }) {
-    Map task = _getActiveTask(idTask);
-    if (model != null) task['model'] = model;
-    if (request != null) task['request'] = request;
-  }
+  // static DownloadTask _getActiveTaskModel(String idTask) {
+  //   ActiveDownload activeDownload = _getActiveTask(idTask);
+  //   if (activeDownload == null) return null;
+  //   return activeDownload.task;
+  // }
 
-  static void _removeActiveTask(String idTask) {
-    _activeTasks.removeWhere(
-        (element) => (element['model'] as DownloadTask).idCustom == idTask);
-    _notifyActiveTaskStream();
-  }
-
-  static DownloadTask _getActiveTaskModel(String idTask) {
-    Map task = _getActiveTask(idTask);
-    if (task == null) return null;
-    return task['model'] as DownloadTask;
-  }
-
-  static HttpClientRequest _getActiveTaskRequest(String idTask) {
-    Map task = _getActiveTask(idTask);
-    if (task == null) return null;
-    return task['request'] as HttpClientRequest;
-  }
-
-  static List<DownloadTask> get activeTask {
+  static List<DownloadTask> get activeTasks {
     return _activeTasks.map((e) {
-      return e['model'] as DownloadTask;
+      return e.task;
     }).toList();
-    List<Map<String, dynamic>> tasks = _activeTasks.where((element) {
-      DownloadTask task = element['model'];
-      return task.status == DownloadTaskStatus.running;
-    }).toList();
-    // return tasks.length;
-    // List<DownloadTask> tasks = await _runningStreamController.stream.last;
-    // return tasks.length;
+  }
+
+  static DownloadTask activeTask(String idTask) {
+    return _getActiveTask(idTask)?.task ?? null;
+  }
+
+  static Stream<DataSize> receibedStream(String idTask) {
+    return _getActiveTask(idTask)?.receivedStreamController?.stream ?? null;
+  }
+
+  static Stream<DataSize> speedDownloadStream(String idTask) {
+    return _getActiveTask(idTask)?.speedDownloadStreamController?.stream ??
+        null;
+  }
+
+  static Stream<DownloadTaskStatus> statusStream(String idTask) {
+    return _getActiveTask(idTask)?.statusStreamController?.stream ?? null;
   }
 
   static void _notifyActiveTaskStream() {
-    _activeTaskStreamController.add(
-      _activeTasks.map((e) => e['model'] as DownloadTask).toList(),
-    );
+    List<DownloadTask> tasks = _activeTasks.map((e) => e.task).toList();
+    tasks.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    _activeTaskStreamController.add(tasks);
   }
 }
 
@@ -487,7 +649,6 @@ Future<void> testWork() async {
     ),
   );
   for (int i = 0; i <= secondsMax; i++) {
-    await Future.delayed(Duration(seconds: 1));
     await flutterLocalNotificationsPlugin.show(
       notificationId,
       'Test WorkManager',

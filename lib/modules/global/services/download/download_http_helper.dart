@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:io';
-import 'package:download_d/modules/global/services/download/data_size.dart';
+import 'package:async/async.dart';
 import 'package:flutter/foundation.dart';
+import 'models/data_size.dart';
 
 class DownloadHttpHelper {
   static Future<HttpClientResponse> head({
@@ -19,13 +20,14 @@ class DownloadHttpHelper {
     return response;
   }
 
-  static Future<HttpClientRequest> download({
+  static Future<CancelableOperation<void>> download({
     @required String url,
     @required String savePath,
     bool resume = true,
     DataSize limitBandwidth,
     Map<String, dynamic> headers,
     void Function(DataSize receivedLength, DataSize contentLength) onReceived,
+    void Function(Object err) onError,
     void Function(DataSize byteInSeconds) onSpeedDownloadChange,
     void Function(int) onProgress,
     void Function() onComplete,
@@ -33,9 +35,10 @@ class DownloadHttpHelper {
   }) async {
     HttpClient httpClient = new HttpClient();
     HttpClientRequest request;
+    HttpClientResponse response;
+    CancelableCompleter cancelableCompleter;
     IOSink ioSink;
     int downloadedBytes = 0;
-
     Timer timerOneSecond;
 
     try {
@@ -53,7 +56,7 @@ class DownloadHttpHelper {
       }
 
       ioSink = file.openWrite(
-        mode: FileMode.writeOnlyAppend,
+        mode: FileMode.append,
       );
 
       int received = downloadedBytes;
@@ -68,12 +71,21 @@ class DownloadHttpHelper {
           request.headers.add(key, value);
         });
       }
-      HttpClientResponse response = await request.close();
-      contentLength = response.headers.contentLength;
-      contentLength += downloadedBytes;
 
       StreamSubscription<List<int>> responseSubscription;
-      int lastCallOnReceibed = DateTime.now().millisecondsSinceEpoch;
+      int lastOnReceibedCalled = DateTime.now().millisecondsSinceEpoch;
+      int lastProgressCalled = DateTime.now().millisecondsSinceEpoch;
+
+      cancelableCompleter = CancelableCompleter<void>(
+        onCancel: () async {
+          timerOneSecond?.cancel();
+          response.detachSocket();
+          request.abort();
+          await responseSubscription?.cancel();
+          responseSubscription = null;
+        },
+      );
+
 
       void Function(List<int>) onListen = (List<int> bytes) async {
         received += bytes.length;
@@ -87,9 +99,10 @@ class DownloadHttpHelper {
             // throw Exception('cancel')
             // responseSubscription.pause()
             print('pausa');
+
+            response.detachSocket();
             responseSubscription?.cancel();
             responseSubscription = null;
-            // response.detachSocket();
             request.abort();
             requestIsPaused = true;
           }
@@ -97,19 +110,22 @@ class DownloadHttpHelper {
 
         if (onReceived != null) {
           if (lastReceived != received) {
-            if ((DateTime.now().millisecondsSinceEpoch - lastCallOnReceibed) >
-                onReceibedDelayCall.inMilliseconds)
+            if ((DateTime.now().millisecondsSinceEpoch - lastOnReceibedCalled) >
+                onReceibedDelayCall.inMilliseconds) {
+              lastOnReceibedCalled = DateTime.now().millisecondsSinceEpoch;
               onReceived(
                   DataSize(bytes: received), DataSize(bytes: contentLength));
-            lastReceived = received;
+              lastReceived = received;
+            }
           }
         }
         if (onProgress != null) {
           if (lastReceived != received) {
-            if ((DateTime.now().millisecondsSinceEpoch - lastCallOnReceibed) >
+            if ((DateTime.now().millisecondsSinceEpoch - lastProgressCalled) >
                 onReceibedDelayCall.inMilliseconds) {
               int progress = (received * 100) ~/ contentLength;
               if (lastProgress != progress) {
+                lastProgressCalled = DateTime.now().millisecondsSinceEpoch;
                 onProgress(progress);
                 lastProgress = progress;
               }
@@ -120,23 +136,28 @@ class DownloadHttpHelper {
       void Function() onDone = () {
         onReceived(DataSize(bytes: received), DataSize(bytes: contentLength));
         ioSink?.close();
-        timerOneSecond.cancel();
+        timerOneSecond?.cancel();
         httpClient.close();
         responseSubscription?.cancel();
         if (onComplete != null) onComplete();
       };
 
-      void Function() onError = () {
+      Function onErrorListen = (err) {
+        if (onError != null) onError(err);
         responseSubscription?.cancel();
         timerOneSecond.cancel();
         ioSink?.close();
         httpClient.close();
       };
 
+      response = await request.close();
+      contentLength = response.headers.contentLength;
+      contentLength += downloadedBytes;
+
       responseSubscription = response.listen(
         onListen,
         onDone: onDone,
-        onError: onError,
+        onError: onErrorListen,
         cancelOnError: true,
       );
 
@@ -148,8 +169,9 @@ class DownloadHttpHelper {
         if (limitBandwidth != null) {
           if (requestIsPaused) {
             requestIsPaused = false;
+            // responseSubscription.resume();
             downloadedBytes = await file.length();
-            // received = downloadedBytes;
+            received = downloadedBytes;
             request = await httpClient.getUrl(Uri.parse(url));
             print('resume');
             request.headers
@@ -159,25 +181,27 @@ class DownloadHttpHelper {
                 request.headers.add(key, value);
               });
             }
-            
+
             response = await request.close();
-            // contentLength = response.headers.contentLength;
-            // contentLength += downloadedBytes;
+            //  contentLength = response.headers.contentLength;
+            //  contentLength += downloadedBytes;
             responseSubscription = response.listen(
               onListen,
               onDone: onDone,
-              onError: onError,
+              onError: onErrorListen,
               cancelOnError: true,
             );
           }
         }
       });
     } catch (err) {
+      if (onError != null) onError(err);
+      timerOneSecond?.cancel();
       httpClient.close();
       ioSink?.close();
-      timerOneSecond?.cancel();
       print(err);
     }
-    return request;
+
+    return cancelableCompleter.operation;
   }
 }
