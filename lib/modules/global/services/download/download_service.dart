@@ -79,7 +79,7 @@ abstract class DownloadService {
     });
     _notifyActiveTaskStream();
 
-    if (resume) await resumeEnqueue();
+    // if (resume) await resumeEnqueue();
   }
 
   static Future<void> stop() async {
@@ -184,10 +184,8 @@ abstract class DownloadService {
         duration: duration,
         thumbnailUrl: thumbnailUrl,
       );
-      if (autoStart) await resume(id);
     } on DatabaseException catch (err) {
       print(err);
-      if (autoStart) await resume(id);
     } catch (err) {
       print(err);
     }
@@ -334,7 +332,7 @@ abstract class DownloadService {
       );
 
       List<ActiveDownload> runningTask = _activeTasks.where((e) {
-        return (e.task.status == DownloadTaskStatus.running) && !(e.changingStatus??false);
+        return (e.task.status == DownloadTaskStatus.running);
       }).toList();
 
       if (runningTask.length >= _downloadPreferences.simultaneousDownloads) {
@@ -352,10 +350,6 @@ abstract class DownloadService {
         _notifyActiveTaskStream();
         return false;
       }
-
-      _getActiveTask(idTask)
-          .statusStreamController
-          .add(DownloadTaskStatus.running);
       // if(idTask=='2')_getActiveTask(idTask).receivedStreamController.stream.listen((event) {
       //   print(event);
       // });
@@ -373,9 +367,14 @@ abstract class DownloadService {
             .update(status: DownloadTaskStatus.running, whereEquals: {
           'id_custom': idTask,
         });
-        _getActiveTask(idTask).statusStreamController.add(
-              DownloadTaskStatus.running,
-            );
+        _addActiveTask(
+          model: activeDownload.task.copyWith(
+            status: DownloadTaskStatus.running,
+          ),
+        );
+        _getActiveTask(idTask)
+            .statusStreamController
+            .add(DownloadTaskStatus.running);
       }
 
       await DownloadNotificationsService.showProgressDownload(
