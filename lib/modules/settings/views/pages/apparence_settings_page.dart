@@ -91,7 +91,7 @@ class _ApparenceSettingsPageState extends State<ApparenceSettingsPage> {
               setState(() {
                 _downloadItemStyle = DownloadStyleItem.from(value);
               });
-              BlocProvider.of<SettingsDisplayBloc>(context).setDownloadStyleItem(value);
+              BlocProvider.of<SettingsDisplayBloc>(context).setDownloadStyleItem(_downloadItemStyle);
             },
           ),
           RadioListTile(
@@ -102,7 +102,7 @@ class _ApparenceSettingsPageState extends State<ApparenceSettingsPage> {
               setState(() {
                 _downloadItemStyle = DownloadStyleItem.from(value);
               });
-              BlocProvider.of<SettingsDisplayBloc>(context).setDownloadStyleItem(value);
+              BlocProvider.of<SettingsDisplayBloc>(context).setDownloadStyleItem(_downloadItemStyle);
             },
           ),
           QueueTile1(

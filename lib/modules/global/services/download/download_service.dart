@@ -92,6 +92,7 @@ abstract class DownloadService {
         DownloadTaskStatus.enqueued,
         DownloadTaskStatus.paused,
         DownloadTaskStatus.failed,
+        DownloadTaskStatus.failedConexion,
       ],
     );
 
