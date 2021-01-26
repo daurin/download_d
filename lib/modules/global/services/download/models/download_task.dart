@@ -6,7 +6,7 @@ import 'download_task_status.dart';
 import 'download_task_type.dart';
 
 class DownloadTask {
-  final int id;
+  int _id;
   final String idCustom;
   final String url;
   final DownloadTaskStatus status;
@@ -22,13 +22,15 @@ class DownloadTask {
   final String mimeType;
   final int index;
   final DataSize limitBandwidth;
+  final DataSize speedDownload;
   final DateTime createdAt;
   final DateTime completedAt;
   final Duration duration;
   final String thumbnailUrl;
+  final int restartCount;
 
   DownloadTask({
-    this.id,
+    int id,
     this.idCustom,
     this.url,
     this.status,
@@ -44,11 +46,15 @@ class DownloadTask {
     this.mimeType,
     this.index,
     this.limitBandwidth,
+    this.speedDownload,
     this.createdAt,
     this.completedAt,
     this.duration,
     this.thumbnailUrl,
-  });
+    this.restartCount,
+  }){
+    _id=id;
+  }
 
   static DownloadTask fromMap(Map<String, dynamic> map) {
     return DownloadTask(
@@ -81,6 +87,7 @@ class DownloadTask {
           ? Duration(milliseconds: int.parse(map['duration'].toString()))
           : null,
       thumbnailUrl: map['thumbnail_url'],
+      restartCount: 0,
     );
   }
 
@@ -101,13 +108,15 @@ class DownloadTask {
     String mimeType,
     int index,
     DataSize limitBandwidth,
+    DataSize speedDownload,
     DateTime createdAt,
     DateTime completedAt,
     Duration duration,
     String thumbnailUrl,
+    int restartCount,
   }) {
     return DownloadTask(
-      id: id ?? this.id,
+      id: id ?? this._id,
       idCustom: idCustom ?? this.idCustom,
       url: url ?? this.url,
       status: status ?? this.status,
@@ -123,11 +132,20 @@ class DownloadTask {
       mimeType: mimeType ?? this.mimeType,
       index: index ?? this.index,
       limitBandwidth: limitBandwidth ?? this.limitBandwidth,
+      speedDownload: speedDownload ?? this.speedDownload,
       createdAt: createdAt ?? this.createdAt,
       completedAt: completedAt ?? this.completedAt,
       duration: duration ?? this.duration,
       thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
+      restartCount: restartCount ?? this.restartCount,
     );
+  }
+
+  int get id{
+    if(_id==1){
+      return -5;
+    }
+    return _id;
   }
 
   String get path => saveDir + '/' + fileName;

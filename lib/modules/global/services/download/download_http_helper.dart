@@ -45,10 +45,15 @@ class DownloadHttpHelper {
       File file = File(savePath);
       request = await httpClient.getUrl(Uri.parse(url));
 
-      if (await file.exists() && resume) {
+      bool fileExist = await file.exists();
+
+      if (fileExist && resume) {
         downloadedBytes = await file.length();
+      } else if (fileExist) {
+        await file.delete();
+        file=await file.create();
       } else {
-        await file.create();
+        file=await file.create();
       }
       if (downloadedBytes > 0) {
         request.headers
@@ -79,32 +84,30 @@ class DownloadHttpHelper {
       cancelableCompleter = CancelableCompleter<void>(
         onCancel: () async {
           timerOneSecond?.cancel();
-          response.detachSocket();
-          request.abort();
+          response?.detachSocket();
+          request?.abort();
           await responseSubscription?.cancel();
           responseSubscription = null;
         },
       );
 
-
       void Function(List<int>) onListen = (List<int> bytes) async {
+        if (requestIsPaused) return;
+        ioSink.add(bytes);
         received += bytes.length;
         receivedInOneSeconds += bytes.length;
-
-        ioSink.add(bytes);
 
         if (limitBandwidth != null) {
           if (receivedInOneSeconds >= limitBandwidth.inBytes &&
               !requestIsPaused) {
+            print('pause');
+            requestIsPaused = true;
             // throw Exception('cancel')
             // responseSubscription.pause()
-            print('pausa');
-
-            response.detachSocket();
-            responseSubscription?.cancel();
+            await responseSubscription?.cancel();
+            await response.detachSocket();
             responseSubscription = null;
-            request.abort();
-            requestIsPaused = true;
+            request?.abort();
           }
         }
 
@@ -134,11 +137,11 @@ class DownloadHttpHelper {
         }
       };
       void Function() onDone = () {
-        onReceived(DataSize(bytes: received), DataSize(bytes: contentLength));
         ioSink?.close();
         timerOneSecond?.cancel();
         httpClient.close();
         responseSubscription?.cancel();
+        if(onReceived!=null)onReceived(DataSize(bytes: received), DataSize(bytes: contentLength));
         if (onComplete != null) onComplete();
       };
 
@@ -168,14 +171,16 @@ class DownloadHttpHelper {
         receivedInOneSeconds = 0;
         if (limitBandwidth != null) {
           if (requestIsPaused) {
+            print('resume');
             requestIsPaused = false;
             // responseSubscription.resume();
-            downloadedBytes = await file.length();
-            received = downloadedBytes;
+            // downloadedBytes = 0;
+            // downloadedBytes = await file.length();
+            // received = downloadedBytes??0;
+            request=null;
             request = await httpClient.getUrl(Uri.parse(url));
-            print('resume');
-            request.headers
-                .add('Range', 'bytes=' + downloadedBytes.toString() + '-');
+              request.headers
+                  .add('Range', 'bytes=' + received.toString() + '-');
             if (headers != null) {
               headers.forEach((key, value) {
                 request.headers.add(key, value);
@@ -183,8 +188,8 @@ class DownloadHttpHelper {
             }
 
             response = await request.close();
-            //  contentLength = response.headers.contentLength;
-            //  contentLength += downloadedBytes;
+             contentLength = response.headers.contentLength;
+             contentLength += downloadedBytes;
             responseSubscription = response.listen(
               onListen,
               onDone: onDone,
@@ -202,6 +207,6 @@ class DownloadHttpHelper {
       print(err);
     }
 
-    return cancelableCompleter.operation;
+    return cancelableCompleter?.operation;
   }
 }

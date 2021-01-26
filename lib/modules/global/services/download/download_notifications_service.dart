@@ -31,7 +31,7 @@ abstract class DownloadNotificationsService {
     await _flutterLocalNotificationsPlugin.show(
       _notificationId,
       'Ejecutando servicio',
-      'Oshinstar se ejecuta en segundo plano',
+      'La aplicación se ejecutando en segundo plano',
       NotificationDetails(
         android: AndroidNotificationDetails(
           'foreground_enabled_notification',
@@ -50,26 +50,87 @@ abstract class DownloadNotificationsService {
     );
   }
 
+  static Future<void> showHeaderDownloadGroup({
+    @required int notificationId,
+  }) async {
+    await _flutterLocalNotificationsPlugin.show(
+      notificationId,
+      'Download D',
+      'La aplicación se esta ejecutando en segundo plano',
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          'download_d_task_channel',
+          'Download status',
+          'El estado de las descargas',
+          showProgress: false,
+          maxProgress: 100,
+          groupKey: 'progress_tasks_group',
+          setAsGroupSummary: true,
+          channelAction: AndroidNotificationChannelAction.createIfNotExists,
+          importance: Importance.defaultImportance,
+          priority: Priority.defaultPriority,
+          autoCancel: false,
+          ongoing: false,
+          playSound: false,
+          enableVibration: false,
+          channelShowBadge: false,
+        ),
+      ),
+    );
+  }
+
   static Future<void> showProgressDownload({
     @required notificationId,
     @required String title,
     @required DataSize size,
+    int notificationIdHeaderHroup,
     DataSize sizeDownload,
     DataSize speedDownload,
     AndroidNotificationChannelAction channelAction =
         AndroidNotificationChannelAction.createIfNotExists,
-        bool setAsGroupSummary=false,
+    bool setAsGroupSummary,
+    bool showProgress=true,
   }) async {
-    if(sizeDownload==null)sizeDownload=DataSize.zero;
-    int progress=0;
-    if((sizeDownload?.inBytes??0)>0){
-      progress=(sizeDownload.inBytes * 100) ~/ size.inBytes;
+    if (sizeDownload == null) sizeDownload = DataSize.zero;
+    int progress = 0;
+    if ((sizeDownload?.inBytes ?? 0) > 0) {
+      progress = (sizeDownload.inBytes * 100) ~/ size.inBytes;
     }
 
-    String subtitle='';
-    if((size?.inBytes??0)>0 && (sizeDownload?.inBytes??0)>0){
-      subtitle+='$progress % (${sizeDownload.format()}/${size.format()}) ';
-      if((speedDownload?.inBytes??0)>0)subtitle+="${speedDownload.format()}/s";
+    String subtitle = '';
+    if ((size?.inBytes ?? 0) > 0 && (sizeDownload?.inBytes ?? 0) > 0) {
+      subtitle += '$progress % (${sizeDownload.format()}/${size.format()}) ';
+      if ((speedDownload?.inBytes ?? 0) > 0)
+        subtitle += "${speedDownload.format()}/s";
+    }
+
+    if (channelAction == AndroidNotificationChannelAction.createIfNotExists) {
+      await showHeaderDownloadGroup(notificationId: notificationIdHeaderHroup);
+      // await _flutterLocalNotificationsPlugin.show(
+      //   notificationIdHeaderHroup,
+      //   'title',
+      //   subtitle,
+      //   NotificationDetails(
+      //     android: AndroidNotificationDetails(
+      //       'download_d_task_channel',
+      //       'Download status',
+      //       'El estado de las descargas',
+      //       showProgress: true,
+      //       maxProgress: 100,
+      //       progress: progress,
+      //       groupKey: 'progress_tasks_group',
+      //       setAsGroupSummary: true,
+      //       channelAction: channelAction,
+      //       importance: Importance.defaultImportance,
+      //       priority: Priority.defaultPriority,
+      //       autoCancel: false,
+      //       ongoing: true,
+      //       playSound: false,
+      //       enableVibration: false,
+      //       channelShowBadge: false,
+      //     ),
+      //   ),
+      // );
     }
 
     await _flutterLocalNotificationsPlugin.show(
@@ -81,11 +142,11 @@ abstract class DownloadNotificationsService {
           'download_d_task_channel',
           'Download status',
           'El estado de las descargas',
-          showProgress: true,
+          showProgress: showProgress,
           maxProgress: 100,
           progress: progress,
-          // groupKey: 'download_task',
-          // setAsGroupSummary: setAsGroupSummary,
+          groupKey: 'progress_tasks_group',
+          setAsGroupSummary: setAsGroupSummary,
           channelAction: channelAction,
           importance: Importance.defaultImportance,
           priority: Priority.defaultPriority,
@@ -103,6 +164,27 @@ abstract class DownloadNotificationsService {
     @required int idNotification,
     @required String displayName,
   }) async {
+    await _flutterLocalNotificationsPlugin.show(
+      -25,
+      'Descarga finalizada',
+      displayName,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          'downloads',
+          _channelName,
+          _channelDescription,
+          groupKey: 'download_finished',
+          setAsGroupSummary: true,
+          channelAction: AndroidNotificationChannelAction.createIfNotExists,
+          importance: Importance.defaultImportance,
+          priority: Priority.defaultPriority,
+          playSound: false,
+          enableVibration: false,
+          // channelShowBadge: false,
+        ),
+      ),
+    );
+
     await _flutterLocalNotificationsPlugin.show(
       idNotification,
       'Descarga finalizada',

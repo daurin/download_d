@@ -1,8 +1,6 @@
 import 'dart:convert';
 import 'package:download_d/db/DB.dart';
 import 'package:flutter/foundation.dart';
-import 'package:intl/intl.dart';
-import 'package:path/path.dart';
 
 import 'models/data_size.dart';
 import 'models/download_task.dart';
@@ -70,11 +68,10 @@ class DownloadTaskRepository {
         'show_notification': showNotification ? 1 : 0,
         'mime_type': mimeType,
         'index': index,
-        'limit_bandwidth': limitBandwidth?.inBytes??null,
+        'limit_bandwidth': limitBandwidth?.inBytes ?? null,
         'created_at': DateTime.now().millisecondsSinceEpoch,
-        'completed_at': completedAt != null
-            ? completedAt.millisecondsSinceEpoch
-            : null,
+        'completed_at':
+            completedAt != null ? completedAt.millisecondsSinceEpoch : null,
         'duration': duration != null ? duration.inMilliseconds : null,
         'thumbnail_url': thumbnailUrl,
       },
@@ -95,25 +92,26 @@ class DownloadTaskRepository {
     bool showNotification,
     String mimeType,
     List<String> fieldsIgnoreNull,
-    Map<String, dynamic> whereEquals,
-    Map<String, dynamic> whereDistinct,
     int index,
     DataSize limitBandwidth,
     bool canResume,
     DateTime completedAt,
     Duration duration,
     String thumbnailUrl,
+    Map<String, dynamic> whereEquals,
+    Map<String, dynamic> whereDistinct,
   }) async {
     final db = DB.db;
 
     String where = '';
+    List<String> whereAndFields = [];
+    List<dynamic> whereValues = [];
 
     Map<String, dynamic> values = {};
     fieldsIgnoreNull = fieldsIgnoreNull ?? [];
 
     if (idCustom != null) values.addAll({'id_custom': url});
     if (url != null) values.addAll({'url': url});
-    if (status != null) values.addAll({'status': status.value});
     if (progress != null) values.addAll({'progress': progress});
     if (headers != null) values.addAll({'headers': jsonEncode(headers)});
     if (saveDir != null) values.addAll({'save_dir': saveDir});
@@ -127,7 +125,7 @@ class DownloadTaskRepository {
     if (status != null) values.addAll({'status': status.value});
     if (index != null) values.addAll({'index': index});
     if (limitBandwidth != null)
-      values.addAll({'limit_bandwidth': limitBandwidth?.inBytes??null});
+      values.addAll({'limit_bandwidth': limitBandwidth?.inBytes ?? null});
     if (completedAt != null)
       values.addAll({
         'completed_at': completedAt.millisecondsSinceEpoch,
@@ -142,22 +140,50 @@ class DownloadTaskRepository {
             .toList()
             .join(', ');
 
-    where += (whereDistinct ?? {}).length == 0
-        ? ''
-        : whereDistinct.entries
-            .map<String>((MapEntry item) => '${item.key} != ?')
-            .toList()
-            .join(', ');
+    where += ' ';
+
+    // where += (whereDistinct ?? {}).length == 0
+    //     ? ''
+    //     : whereDistinct.entries
+    //         .map<String>((MapEntry item) => '${item.key} != ?')
+    //         .toList()
+    //         .join(', ');
+
+    // if ((whereEquals ?? {}).length > 0)
+    //   whereAndArguments.addAll(whereEquals.entries
+    //       .map<dynamic>((MapEntry item) => item.value)
+    //       .toList());
+    // if ((whereDistinct ?? {}).length > 0)
+    //   whereAndArguments.addAll(whereDistinct.entries
+    //       .map<dynamic>((MapEntry item) => item.value)
+    //       .toList());
+
+    if ((whereEquals ?? {}).length > 0) {
+      whereAndFields.addAll(whereEquals.entries
+          .map<String>((MapEntry item) => '${item.key} == ?')
+          .toList());
+      whereValues.addAll(whereEquals.entries
+          .map<dynamic>((MapEntry item) => item.value)
+          .toList());
+    }
+
+    if ((whereDistinct ?? {}).length > 0) {
+      whereAndFields.addAll(whereDistinct.entries
+          .map<String>((MapEntry item) => '${item.key} != ?')
+          .toList());
+      whereValues.addAll(whereDistinct.entries
+          .map<dynamic>((MapEntry item) => item.value)
+          .toList());
+    }
 
     print(where);
 
-    int id = await db.update(tableName, values,
-        where: where,
-        whereArgs: whereEquals.length == 0
-            ? null
-            : whereEquals.entries
-                .map<dynamic>((MapEntry item) => item.value)
-                .toList());
+    int id = await db.update(
+      tableName,
+      values,
+      where: whereAndFields.join(' AND '),
+      whereArgs: whereValues,
+    );
     return id;
   }
 
@@ -200,12 +226,12 @@ class DownloadTaskRepository {
     }
 
     query = "SELECT * FROM `$tableName` ";
-    if (whereAnd.length > 0){
-      if(!query.contains('WHERE'))query+='WHERE ';
-      query +="${whereAnd.join(' AND ')} ";
+    if (whereAnd.length > 0) {
+      if (!query.contains('WHERE')) query += 'WHERE ';
+      query += "${whereAnd.join(' AND ')} ";
     }
-    if (whereOr.length > 0){
-      if(!query.contains('WHERE'))query+='WHERE ';
+    if (whereOr.length > 0) {
+      if (!query.contains('WHERE')) query += 'WHERE ';
       query += "${whereOr.join(' OR ')} ";
     }
     query += "ORDER BY created_at DESC LIMIT ${limit ?? -1} OFFSET $offset;";

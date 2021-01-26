@@ -20,6 +20,7 @@ class DownloadTaskStatus {
       case 'failed': return 4;
       case 'canceled': return 5;
       case 'paused': return 6;
+      case 'failed_conexion': return 7;
       default: return null;
     }
   }
@@ -35,6 +36,7 @@ class DownloadTaskStatus {
   static const running = const DownloadTaskStatus('running');
   static const complete = const DownloadTaskStatus('complete');
   static const failed = const DownloadTaskStatus('failed');
+  static const failedConexion = const DownloadTaskStatus('failed_conexion');
   static const canceled = const DownloadTaskStatus('canceled');
   static const paused = const DownloadTaskStatus('paused');
 }

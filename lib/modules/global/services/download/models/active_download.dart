@@ -12,6 +12,7 @@ class ActiveDownload {
   final StreamController<DownloadTaskStatus> statusStreamController;
   final CancelableOperation<void> cancelableOperation;
   final bool changingStatus;
+  final void Function(DownloadTask task) onEmitStatus;
 
   ActiveDownload({
     this.task,
@@ -20,23 +21,37 @@ class ActiveDownload {
     this.speedDownloadStreamController,
     this.cancelableOperation,
     this.changingStatus,
+    this.onEmitStatus,
   });
 
   ActiveDownload copyWith({
     DownloadTask task,
     StreamController<DataSize> receivedStreamController,
-    StreamController<DataSize> statusStreamController,
     StreamController<DataSize> speedDownloadStreamController,
+    StreamController<DownloadTaskStatus> statusStreamController,
     CancelableOperation<void> cancelableOperation,
     bool changingStatus,
+    void Function(DownloadTask task) onEmitStatus,
   }) {
     return ActiveDownload(
       task: task ?? this.task,
-      receivedStreamController: receivedStreamController  ?? this.receivedStreamController,
-      statusStreamController: statusStreamController ?? this.statusStreamController,
-      speedDownloadStreamController: speedDownloadStreamController ?? this.speedDownloadStreamController,
+      receivedStreamController:
+          receivedStreamController ?? this.receivedStreamController,
+      statusStreamController:
+          statusStreamController ?? this.statusStreamController,
+      speedDownloadStreamController:
+          speedDownloadStreamController ?? this.speedDownloadStreamController,
       cancelableOperation: cancelableOperation ?? this.cancelableOperation,
       changingStatus: changingStatus ?? this.changingStatus,
+      onEmitStatus: onEmitStatus ?? this.onEmitStatus,
     );
+  }
+
+  void emitStatus(DownloadTaskStatus status) {
+    statusStreamController.add(status);
+    if (onEmitStatus != null)
+      onEmitStatus(this.task.copyWith(
+            status: status,
+          ));
   }
 }
