@@ -38,7 +38,7 @@ class _NotificationsSettingsPageState extends State<NotificationsSettingsPage> {
             subtitle: Builder(
               builder: (context) {
                 if(_enabledNotifications)return Text('habilita todas las notificaciones');
-                else if(_downloadPreferences.keepBackground)return Text('No se mostrara ninguna notificación a excepción la notificación que indica que se esta ejefcutand oen segundo plano');
+                else if(_downloadPreferences.keepBackground)return Text('No se mostrara ninguna notificación a excepción de la notificación que indica que se esta ejefcutando en segundo plano');
                 return Text('No se mostrara ninguna notificación');
               }
             ),

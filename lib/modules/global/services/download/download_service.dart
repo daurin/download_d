@@ -27,7 +27,7 @@ abstract class DownloadService {
 
   static StreamController<List<DownloadTask>> _activeTaskStreamController;
   static StreamController<List<DownloadTask>> _statusStreamController;
-  static StreamController<List<DownloadTask>> _runningTaskStream;
+  static StreamController<DownloadTask> _onCompleteTaskStream;
 
   static DownloadTaskRepository _downloadDb = DownloadTaskRepository();
 
@@ -40,8 +40,8 @@ abstract class DownloadService {
 
   static Stream<List<DownloadTask>> get statusStream =>
       _statusStreamController?.stream;
-  static Stream<List<DownloadTask>> get runningTaskStream =>
-      _statusStreamController?.stream;
+  static Stream<DownloadTask> get onCompleteTaskStream =>
+      _onCompleteTaskStream?.stream;
 
   // static Stream<List<DownloadTask>> get runningTaskStream =>
   //     _statusStreamController?.stream?.where((event) {
@@ -79,7 +79,7 @@ abstract class DownloadService {
     _activeTaskStreamController =
         StreamController<List<DownloadTask>>.broadcast();
     _statusStreamController = StreamController<List<DownloadTask>>.broadcast();
-    _runningTaskStream = StreamController<List<DownloadTask>>.broadcast();
+    _onCompleteTaskStream = StreamController<DownloadTask>.broadcast();
     await DownloadNotificationsService.initialize();
 
     if (!await Permission.storage.isGranted) {
@@ -122,7 +122,7 @@ abstract class DownloadService {
     if (!_initialized) return;
     await _activeTaskStreamController.close();
     await _statusStreamController.close();
-    await _runningTaskStream.close();
+    await _onCompleteTaskStream.close();
     await DownloadNotificationsService.cancelAll();
     _initialized = false;
   }
@@ -200,19 +200,21 @@ abstract class DownloadService {
       DownloadTask task = await DownloadTaskRepository().findByIdCustom(id);
       _addActiveTask(
         model: task.copyWith(
-          status: DownloadTaskStatus.enqueued,
+          status: DownloadTaskStatus.paused,
         ),
       );
-      _getActiveTask(id)?.emitStatus(DownloadTaskStatus.enqueued);
+      _getActiveTask(id)?.emitStatus(DownloadTaskStatus.paused);
+      _notifyActiveTaskStream();
       if (autoStart) await resume(id);
     } on DatabaseException catch (err) {
       DownloadTask task = await DownloadTaskRepository().findByIdCustom(id);
       _addActiveTask(
         model: task.copyWith(
-          status: DownloadTaskStatus.enqueued,
+          status: DownloadTaskStatus.paused,
         ),
       );
-      _getActiveTask(id)?.emitStatus(DownloadTaskStatus.enqueued);
+      _getActiveTask(id)?.emitStatus(DownloadTaskStatus.paused);
+      _notifyActiveTaskStream();
       if (autoStart) await resume(id);
       print(err);
     } catch (err) {
@@ -420,8 +422,8 @@ abstract class DownloadService {
     }
     ActiveDownload activeDownload = _getActiveTask(idTask);
 
-    if (activeDownload?.changingStatus ??
-        false || activeDownload?.task?.status == DownloadTaskStatus.running) {
+    if ((activeDownload?.changingStatus ?? false) ||
+        activeDownload?.task?.status == DownloadTaskStatus.running) {
       return false;
     }
     if (activeDownload != null) {
@@ -452,7 +454,6 @@ abstract class DownloadService {
           model: activeDownload.task.copyWith(
             status: DownloadTaskStatus.enqueued,
           ),
-          changingStatus: false,
         );
         _getActiveTask(idTask).emitStatus(DownloadTaskStatus.enqueued);
 
@@ -461,11 +462,6 @@ abstract class DownloadService {
       DownloadTask downloadTask =
           await DownloadTaskRepository().findByIdCustom(idTask);
       int lastCallUpdateNotification = DateTime.now().millisecondsSinceEpoch;
-
-      _addActiveTask(
-        model: activeDownload.task,
-        changingStatus: true,
-      );
 
       if (await File(downloadTask.path).exists()) {
         if (await File(downloadTask.path).length() >=
@@ -482,7 +478,6 @@ abstract class DownloadService {
       downloadTask = downloadTask.copyWith(status: DownloadTaskStatus.running);
       _addActiveTask(
         model: downloadTask,
-        changingStatus: false,
       );
       _getActiveTask(idTask).emitStatus(DownloadTaskStatus.running);
       _notifyActiveTaskStream();
@@ -516,6 +511,7 @@ abstract class DownloadService {
                 );
                 _addActiveTask(
                   model: downloadTask,
+                  changingStatus: false,
                 );
                 if (!(activeDownload?.receivedStreamController?.isClosed ??
                     false)) {
@@ -716,6 +712,9 @@ abstract class DownloadService {
                 .where((e) => e.task.status == DownloadTaskStatus.running)
                 .map((e) => e.task)
                 .toList();
+
+            if (task.status == DownloadTaskStatus.complete)
+              _onCompleteTaskStream?.add(task);
 
             _statusStreamController?.add(tasks);
             if (tasks.length != _runningTaskStreamLastValue.length) {

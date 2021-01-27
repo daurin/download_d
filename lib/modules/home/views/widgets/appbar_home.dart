@@ -32,7 +32,7 @@ class AppBarHome extends StatelessWidget implements PreferredSizeWidget {
             ),
             if (visibleResumeAll)
               StreamBuilder<List<DownloadTask>>(
-                stream: DownloadService.runningTaskStream,
+                stream: DownloadService.statusStream,
                 initialData: DownloadService.activeTasks.where((e) {
                   return e.status == DownloadTaskStatus.running;
                 }).toList(),
@@ -60,13 +60,14 @@ class AppBarHome extends StatelessWidget implements PreferredSizeWidget {
             PopupMenuButton(
               icon: Icon(Icons.more_vert_rounded),
               itemBuilder: (context) {
-                List<PopupMenuItem> items=[];
+                List<PopupMenuItem> items = [];
 
-                if(visibleResumeAll)items.add(PopupMenuItem(
+                if (visibleResumeAll)
+                  items.add(PopupMenuItem(
                     child: ListTile(
                       // leading: Icon(Icons.clear_all_rounded),
                       title: Text('Cancelar todo'),
-                      onTap: ()async{
+                      onTap: () async {
                         Navigator.pop(context);
                         await DownloadService.cancelAll();
                       },
@@ -75,16 +76,19 @@ class AppBarHome extends StatelessWidget implements PreferredSizeWidget {
                   ));
 
                 items.add(PopupMenuItem(
-                    child: ListTile(
-                      // leading: Icon(Icons.settings_rounded),
-                      title: Text('Configuracion'),
-                      onTap: ()async{
-                        Navigator.pop(context);
-                        await Navigator.push(context, MaterialPageRoute(builder: (context)=>SettingsPage()));
-                      },
-                    ),
-                    value: 'settings',
-                  ));
+                  child: ListTile(
+                    // leading: Icon(Icons.settings_rounded),
+                    title: Text('Configuracion'),
+                    onTap: () async {
+                      Navigator.pop(context);
+                      await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => SettingsPage()));
+                    },
+                  ),
+                  value: 'settings',
+                ));
 
                 return items;
               },
@@ -102,11 +106,17 @@ class AppBarHome extends StatelessWidget implements PreferredSizeWidget {
         file50mb = 'http://212.183.159.230/50MB.zip',
         file100mb = 'http://212.183.159.230/100MB.zip';
 
+    await DownloadService.addTask(
+      id: 'big_buck_bunny_720p_2mbgdfg',
+      url: 'https://www.sample-videos.com/video123/mp4/720/big_buck_bunny_720p_2mb.mp4',
+      saveDir: DownloadPreferencesRepository().downloadPath,
+    );
+
     for (int i = 0; i < 10; i++) {
       await DownloadService.addTask(
-        id: 'test${i + 1}',
-        url: file5mb,
-        fileName: '5MB(${i + 1}).zip',
+        id: '10mbtest${i + 1}',
+        url: file10mb,
+        fileName: '10MB(${i + 1}).zip',
         saveDir: DownloadPreferencesRepository().downloadPath,
         // limitBandwidth: DataSize(
         //   kilobytes: 400,

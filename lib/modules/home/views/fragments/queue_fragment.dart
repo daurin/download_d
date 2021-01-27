@@ -97,7 +97,7 @@ class _QueueFragmentState extends State<QueueFragment> {
                   key: ValueKey(task.idCustom),
                   direction: DismissDirection.endToStart,
                   background: Container(
-                    color: Colors.red,
+                    color: Theme.of(context).errorColor,
                     child: Padding(
                       padding: EdgeInsets.symmetric(horizontal: 16),
                       child: Row(
@@ -107,14 +107,14 @@ class _QueueFragmentState extends State<QueueFragment> {
                             'Cancelar',
                             style: TextStyle(
                               fontSize: 16,
-                              color: Theme.of(context).canvasColor,
+                              color: Colors.white,
                             ),
                           ),
                           SizedBox(width: 10),
                           Icon(
                             Icons.clear_rounded,
                             size: 28,
-                            color: Theme.of(context).canvasColor,
+                            color: Colors.white,
                           ),
                         ],
                       ),

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:download_d/modules/global/services/download/download_preferences_repository.dart';
 import 'package:download_d/modules/global/services/download/download_service.dart';
 import 'package:download_d/modules/global/services/download/models/download_task.dart';
+import 'package:download_d/modules/history/views/fragments/history_fragment.dart';
 import 'package:download_d/modules/home/views/fragments/queue_fragment.dart';
 import 'package:download_d/modules/home/views/widgets/appbar_home.dart';
 import 'package:download_d/modules/history/views/widgets/appbar_history.dart';
@@ -33,7 +34,7 @@ class _HomePageState extends State<HomePage> {
         resume: !DownloadPreferencesRepository().lastStatusIsPaused,
       );
       _runningTaskSubscription =
-          DownloadService.runningTaskStream.listen(_runningTaskListen);
+          DownloadService.statusStream.listen(_runningTaskListen);
       _activeTaskSubscription =
           DownloadService.activeTaskCountStream?.listen(_activeTaskListen);
       _visibleResumeAll = DownloadService.activeTasks.length > 0;
@@ -81,9 +82,7 @@ class _HomePageState extends State<HomePage> {
               QueueFragment(
                 key: ValueKey('QueueFragment'),
               ),
-              Center(
-                child: Text('Historial'),
-              ),
+              HistoryFragment(),
               // SettingsFragment(),
             ],
           );
