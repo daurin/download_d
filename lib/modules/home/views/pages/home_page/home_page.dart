@@ -30,27 +30,30 @@ class _HomePageState extends State<HomePage> {
     _visibleResumeAll = false;
 
     WidgetsBinding.instance.addPostFrameCallback((timeStamp) async {
-      await DownloadService.start(
-        resume: !DownloadPreferencesRepository().lastStatusIsPaused,
-      );
-      _runningTaskSubscription =
-          DownloadService.statusStream.listen(_runningTaskListen);
-      _activeTaskSubscription =
-          DownloadService.activeTaskCountStream?.listen(_activeTaskListen);
-      _visibleResumeAll = DownloadService.activeTasks.length > 0;
+      try {
+        await DownloadService.start(
+          resume: !DownloadPreferencesRepository().lastStatusIsPaused,
+        );
+        _runningTaskSubscription =
+            DownloadService.statusStream.listen(_runningTaskListen);
+        _activeTaskSubscription =
+            DownloadService.activeTaskCountStream?.listen(_activeTaskListen);
+        _visibleResumeAll = DownloadService.activeTasks.length > 0;
 
-      _visibleResumeAll = false;
-      _visibleResumeAll = DownloadService.activeTasks.length > 0;
+        _visibleResumeAll = false;
+        _visibleResumeAll = DownloadService.activeTasks.length > 0;
 
-      if (DownloadPreferencesRepository().downloadPath == null) {
-        String downloadDir = await ExtStorage.getExternalStorageDirectory();
-        downloadDir += '/' + ExtStorage.DIRECTORY_DOWNLOADS;
-        DownloadPreferencesRepository().downloadPath=downloadDir;
+        if (DownloadPreferencesRepository().downloadPath == null) {
+          String downloadDir = await ExtStorage.getExternalStorageDirectory();
+          downloadDir += '/' + ExtStorage.DIRECTORY_DOWNLOADS;
+          DownloadPreferencesRepository().downloadPath = downloadDir;
+        }
+        setState(() {
+          _isLoading = false;
+        });
+      } catch (err) {
+        print(err);
       }
-
-      setState(() {
-        _isLoading = false;
-      });
     });
 
     _selectedFragment = 0;

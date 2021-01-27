@@ -276,6 +276,7 @@ abstract class DownloadService {
         if ([
           DownloadTaskStatus.running,
           DownloadTaskStatus.enqueued,
+          DownloadTaskStatus.failedConexion,
         ].contains(element.task.status)) {
           return true;
         }
@@ -298,6 +299,7 @@ abstract class DownloadService {
     ActiveDownload activeDownload = _getActiveTask(idTask);
     if (activeDownload?.changingStatus ?? false) return;
     try {
+      activeDownload?.cancelableOperation?.cancel();
       _addActiveTask(
         model: task.copyWith(
           status: DownloadTaskStatus.paused,
@@ -413,30 +415,28 @@ abstract class DownloadService {
   }
 
   static Future<bool> resume(String idTask) async {
-    if (_downloadPreferences.keepBackground) {
-      if (!FlutterBackground.isBackgroundExecutionEnabled) {
-        await enableForegroundService();
-        DownloadNotificationsService.showHeaderDownloadGroup(
-            notificationId: _notificationIdHeader);
-      }
-    }
     ActiveDownload activeDownload = _getActiveTask(idTask);
 
     if ((activeDownload?.changingStatus ?? false) ||
         activeDownload?.task?.status == DownloadTaskStatus.running) {
       return false;
     }
-    if (activeDownload != null) {
-      _addActiveTask(
-        model: activeDownload.task,
-        changingStatus: true,
-      );
-    }
-    if (!await Permission.storage.isGranted) {
-      await Permission.storage.request();
-    }
+    _addActiveTask(
+      model: activeDownload.task,
+      changingStatus: true,
+    );
 
     try {
+      if (_downloadPreferences.keepBackground) {
+        if (!FlutterBackground.isBackgroundExecutionEnabled) {
+          await enableForegroundService();
+          DownloadNotificationsService.showHeaderDownloadGroup(
+              notificationId: _notificationIdHeader);
+        }
+      }
+      if (!await Permission.storage.isGranted) {
+        await Permission.storage.request();
+      }
       List<ActiveDownload> runningTask = _activeTasks.where((e) {
         return (e.task.status == DownloadTaskStatus.running);
       }).toList();
@@ -454,6 +454,7 @@ abstract class DownloadService {
           model: activeDownload.task.copyWith(
             status: DownloadTaskStatus.enqueued,
           ),
+          changingStatus: false,
         );
         _getActiveTask(idTask).emitStatus(DownloadTaskStatus.enqueued);
 
@@ -499,130 +500,126 @@ abstract class DownloadService {
 
       CancelableOperation<void> cancelableOperation =
           await DownloadHttpHelper.download(
-              url: downloadTask.url,
-              savePath: downloadTask.saveDir + '/' + downloadTask.fileName,
-              headers: downloadTask.headers,
-              resume: downloadTask.resumable,
-              limitBandwidth: downloadTask.limitBandwidth,
-              onReceibedDelayCall: Duration(milliseconds: 200),
-              onReceived: (received, total) async {
-                downloadTask = downloadTask.copyWith(
-                  sizeDownloaded: received,
-                );
-                _addActiveTask(
-                  model: downloadTask,
-                  changingStatus: false,
-                );
-                if (!(activeDownload?.receivedStreamController?.isClosed ??
-                    false)) {
-                  activeDownload?.receivedStreamController?.add(received);
-                }
+        url: downloadTask.url,
+        savePath: downloadTask.saveDir + '/' + downloadTask.fileName,
+        headers: downloadTask.headers,
+        resume: downloadTask.resumable,
+        limitBandwidth: downloadTask.limitBandwidth,
+        onReceibedDelayCall: Duration(milliseconds: 200),
+        onReceived: (received, total) async {
+          downloadTask = downloadTask.copyWith(
+            sizeDownloaded: received,
+          );
+          _addActiveTask(
+            model: downloadTask,
+          );
+          if (!(activeDownload?.receivedStreamController?.isClosed ?? false)) {
+            activeDownload?.receivedStreamController?.add(received);
+          }
 
-                if ((DateTime.now().millisecondsSinceEpoch -
-                        lastCallUpdateNotification) >
-                    Duration(milliseconds: 1000).inMilliseconds) {
-                  lastCallUpdateNotification =
-                      DateTime.now().millisecondsSinceEpoch;
-                  if (_downloadPreferences.enabledNotifications)
-                    await DownloadNotificationsService.showProgressDownload(
-                      notificationId: downloadTask.id,
-                      title: downloadTask.displayName,
-                      sizeDownload: received,
-                      size: total,
-                      speedDownload: lastSpeedDownload,
-                      channelAction: AndroidNotificationChannelAction.update,
-                      showProgress:
-                          _downloadPreferences.showProgressBarNotifications,
-                    );
-                }
-              },
-              onSpeedDownloadChange: (size) {
-                print(size.format());
-                lastSpeedDownload = size;
-                if (!(activeDownload?.speedDownloadStreamController?.isClosed ??
-                    false))
-                  activeDownload?.speedDownloadStreamController?.add(size);
-                downloadTask = downloadTask.copyWith(
-                  speedDownload: size,
-                );
-                _addActiveTask(
-                  model: downloadTask,
-                );
-              },
-              onComplete: () async {
-                downloadTask =
-                    downloadTask.copyWith(status: DownloadTaskStatus.complete);
-                _addActiveTask(
-                  model: downloadTask,
-                );
-                _getActiveTask(idTask)?.emitStatus(DownloadTaskStatus.complete);
-                await DownloadTaskRepository().update(
-                  status: DownloadTaskStatus.complete,
-                  completedAt: DateTime.now(),
-                  whereEquals: {'id_custom': idTask},
-                );
-                await _removeActiveTask(idTask);
-                _notifyActiveTaskStream();
-                await resumeEnqueue();
+          if ((DateTime.now().millisecondsSinceEpoch -
+                  lastCallUpdateNotification) >
+              Duration(milliseconds: 1000).inMilliseconds) {
+            lastCallUpdateNotification = DateTime.now().millisecondsSinceEpoch;
+            if (_downloadPreferences.enabledNotifications)
+              await DownloadNotificationsService.showProgressDownload(
+                notificationId: downloadTask.id,
+                title: downloadTask.displayName,
+                sizeDownload: received,
+                size: total,
+                speedDownload: lastSpeedDownload,
+                channelAction: AndroidNotificationChannelAction.update,
+                showProgress: _downloadPreferences.showProgressBarNotifications,
+              );
+          }
+        },
+        onSpeedDownloadChange: (size) {
+          print(size.format());
+          lastSpeedDownload = size;
+          if (!(activeDownload?.speedDownloadStreamController?.isClosed ??
+              false)) activeDownload?.speedDownloadStreamController?.add(size);
+          downloadTask = downloadTask.copyWith(
+            speedDownload: size,
+          );
+          _addActiveTask(
+            model: downloadTask,
+          );
+        },
+        onComplete: () async {
+          downloadTask =
+              downloadTask.copyWith(status: DownloadTaskStatus.complete);
+          _addActiveTask(
+            model: downloadTask,
+          );
+          _getActiveTask(idTask)?.emitStatus(DownloadTaskStatus.complete);
+          await DownloadTaskRepository().update(
+            status: DownloadTaskStatus.complete,
+            completedAt: DateTime.now(),
+            whereEquals: {'id_custom': idTask},
+          );
+          await _removeActiveTask(idTask);
+          _notifyActiveTaskStream();
+          await resumeEnqueue();
 
-                if (_downloadPreferences.enabledNotifications &&
-                    _downloadPreferences.notifyOnFinished) {
-                  await DownloadNotificationsService.showFinishedDownload(
-                    idNotification: downloadTask.id,
-                    displayName: downloadTask.displayName,
-                  );
-                }
-                await DownloadNotificationsService.cancel(
-                  _notificationIdHeader,
-                );
-                await DownloadNotificationsService.cancel(
-                  downloadTask.id,
-                );
-                if (_runningTaskStreamLastValue.length == 0) {
-                  await disableForegroundService();
-                }
-              },
-              onError: (err) async {
-                bool conexionError = false;
-                // Err conexion
-                if (err is HttpException) {
-                  if (err.message == 'Connection closed while receiving data')
-                    conexionError = true;
-                }
-                if (err is SocketException) {
-                  if (err.message == 'Connection failed') conexionError = true;
-                }
-                DownloadTaskStatus newStatus = conexionError
-                    ? DownloadTaskStatus.failedConexion
-                    : DownloadTaskStatus.failed;
-                downloadTask = downloadTask.copyWith(status: newStatus);
-                _addActiveTask(
-                  model: downloadTask,
-                );
-                _getActiveTask(idTask)?.emitStatus(newStatus);
-                await DownloadTaskRepository().update(
-                  status: newStatus,
-                  completedAt: DateTime.now(),
-                  whereEquals: {'id_custom': idTask},
-                );
-                if (_runningTaskStreamLastValue.length == 0) {
-                  await disableForegroundService();
-                  if (_downloadPreferences.enabledNotifications)
-                    await DownloadNotificationsService.cancel(
-                      _notificationIdHeader,
-                    );
-                }
-                if (_downloadPreferences.restart &&
-                    downloadTask.restartCount == 0 &&
-                    !conexionError) {
-                  Future.delayed(
-                      Duration(seconds: _downloadPreferences.restartInterval),
-                      () async {
-                    await retry(idTask);
-                  });
-                }
-                await resumeEnqueue();
-              });
+          if (_downloadPreferences.enabledNotifications &&
+              _downloadPreferences.notifyOnFinished) {
+            await DownloadNotificationsService.showFinishedDownload(
+              idNotification: downloadTask.id,
+              displayName: downloadTask.displayName,
+            );
+          }
+          await DownloadNotificationsService.cancel(
+            _notificationIdHeader,
+          );
+          await DownloadNotificationsService.cancel(
+            downloadTask.id,
+          );
+          if (_runningTaskStreamLastValue.length == 0) {
+            await disableForegroundService();
+          }
+        },
+        onError: (err) async {
+          bool conexionError = false;
+          // Err conexion
+          if (err is HttpException) {
+            if (err.message == 'Connection closed while receiving data')
+              conexionError = true;
+          }
+          if (err is SocketException) {
+            if (err.message == 'Connection failed') conexionError = true;
+          }
+          DownloadTaskStatus newStatus = conexionError
+              ? DownloadTaskStatus.failedConexion
+              : DownloadTaskStatus.failed;
+          downloadTask = downloadTask.copyWith(status: newStatus);
+          _addActiveTask(
+            model: downloadTask,
+          );
+          _getActiveTask(idTask)?.emitStatus(newStatus);
+          await DownloadTaskRepository().update(
+            status: newStatus,
+            completedAt: DateTime.now(),
+            whereEquals: {'id_custom': idTask},
+          );
+          if (_runningTaskStreamLastValue.length == 0) {
+            await disableForegroundService();
+            if (_downloadPreferences.enabledNotifications)
+              await DownloadNotificationsService.cancel(
+                _notificationIdHeader,
+              );
+          }
+          if (_downloadPreferences.restart &&
+              downloadTask.restartCount == 0 &&
+              !conexionError) {
+            Future.delayed(
+                Duration(seconds: _downloadPreferences.restartInterval),
+                () async {
+              await retry(idTask);
+            });
+          }
+          await resumeEnqueue();
+        },
+      );
 
       _addActiveTask(
         model: downloadTask,
@@ -635,7 +632,12 @@ abstract class DownloadService {
         status: DownloadTaskStatus.failed,
         whereEquals: {'id_custom': idTask},
       );
-      _getActiveTask(idTask)?.emitStatus(DownloadTaskStatus.failed);
+      ActiveDownload activeDownload = _getActiveTask(idTask);
+      _addActiveTask(
+        model: activeDownload.task,
+        changingStatus: false,
+      );
+      activeDownload.emitStatus(DownloadTaskStatus.failed);
       await resumeEnqueue();
     }
     return false;
@@ -705,9 +707,11 @@ abstract class DownloadService {
           cancelableOperation: cancelableOperation,
           changingStatus: changingStatus,
           onEmitStatus: (DownloadTask task) {
-            // _addActiveTask(model: task.copyWith(
-            //   status: task.status,
-            // ),);
+            _addActiveTask(
+              model: task.copyWith(
+                status: task.status,
+              ),
+            );
             List<DownloadTask> tasks = _activeTasks
                 .where((e) => e.task.status == DownloadTaskStatus.running)
                 .map((e) => e.task)
