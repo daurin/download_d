@@ -2,6 +2,7 @@ import 'package:download_d/modules/global/services/download/download_preferences
 import 'package:download_d/modules/global/services/download/models/data_size.dart';
 import 'package:download_d/modules/global/services/download/models/download_task_status.dart';
 import 'package:download_d/modules/global/models/download_style_item.dart';
+import 'package:download_d/modules/global/services/download/singleton/download_file_service.dart';
 import 'package:download_d/modules/home/views/widgets/queue_tile_1.dart';
 import 'package:download_d/modules/settings/blocs/pref_apparence_local_storage.dart';
 import 'package:download_d/modules/settings/blocs/settings_display/settings_display_bloc.dart';
@@ -22,7 +23,7 @@ class _ApparenceSettingsPageState extends State<ApparenceSettingsPage> {
   @override
   void initState() {
     super.initState();
-    _downloadPreferences = DownloadPreferencesRepository();
+    _downloadPreferences = DownloadFileService().preferences;
     _downloadItemStyle = PrefApparenceLocalStorage().downloadStyleItem;
   }
 

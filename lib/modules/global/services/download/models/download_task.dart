@@ -28,6 +28,7 @@ class DownloadTask {
   final Duration duration;
   final String thumbnailUrl;
   final int restartCount;
+  final Map<String,dynamic> metadata;
 
   DownloadTask({
     int id,
@@ -52,6 +53,7 @@ class DownloadTask {
     this.duration,
     this.thumbnailUrl,
     this.restartCount,
+    this.metadata,
   }){
     _id=id;
   }
@@ -88,6 +90,7 @@ class DownloadTask {
           : null,
       thumbnailUrl: map['thumbnail_url'],
       restartCount: 0,
+      metadata: map['metadata'] !=null ? jsonDecode(map['metadata']) : null,
     );
   }
 
@@ -114,6 +117,7 @@ class DownloadTask {
     Duration duration,
     String thumbnailUrl,
     int restartCount,
+    Map<String,dynamic> metadata,
   }) {
     return DownloadTask(
       id: id ?? this._id,
@@ -138,6 +142,7 @@ class DownloadTask {
       duration: duration ?? this.duration,
       thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
       restartCount: restartCount ?? this.restartCount,
+      metadata: metadata ?? this.metadata,
     );
   }
 

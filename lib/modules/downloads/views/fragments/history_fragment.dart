@@ -1,9 +1,7 @@
 import 'dart:async';
-
-import 'package:download_d/modules/global/services/download/download_service.dart';
-import 'package:download_d/modules/global/services/download/download_task_repository.dart';
 import 'package:download_d/modules/global/services/download/models/download_task.dart';
 import 'package:download_d/modules/global/services/download/models/download_task_status.dart';
+import 'package:download_d/modules/global/services/download/singleton/download_file_service.dart';
 import 'package:flutter/material.dart';
 import 'package:open_file/open_file.dart';
 import 'package:sticky_grouped_list/sticky_grouped_list.dart';
@@ -27,7 +25,7 @@ class _HistoryFragmentState extends State<HistoryFragment> {
     _downloadTask = [];
 
     _onCompleteTaskSubscription =
-        DownloadService.onCompleteTaskStream.listen((event) async {
+        DownloadFileService().onCompleteTaskStream.listen((event) async {
       await _loadHistory(startPagination: true);
     });
 
@@ -87,7 +85,8 @@ class _HistoryFragmentState extends State<HistoryFragment> {
         return Container(
           child: ListTile(
             tileColor: Theme.of(context).scaffoldBackgroundColor,
-            title: Text(dateFormatted,
+            title: Text(
+              dateFormatted,
               style: TextStyle(
                 color: Theme.of(context).hintColor,
               ),
@@ -106,22 +105,58 @@ class _HistoryFragmentState extends State<HistoryFragment> {
   }
 
   Widget _buildItem(DownloadTask task) {
-    return ListTile(
-      title: Text(task.fileName),
-      subtitle: Row(
-        children: [
-          Text(task.size.format()),
-          Spacer(),
-          if (Localizations.localeOf(context).toString() == 'es')
-            Text(DateFormat.jm().format(task.completedAt))
-          else
-            Text(DateFormat.Hm().format(task.completedAt)),
-        ],
+    return Dismissible(
+      key: ValueKey(task.idCustom),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        color: Theme.of(context).errorColor,
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Text(
+                'Limpiar',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.white,
+                ),
+              ),
+              SizedBox(width: 10),
+              Icon(
+                Icons.delete_forever_rounded,
+                size: 28,
+                color: Colors.white,
+              ),
+            ],
+          ),
+        ),
       ),
-      onTap: () async {
-        OpenResult openResult = await OpenFile.open(task.path);
-        print(openResult);
+      // onDismissed: (direction){
+
+      // },
+      confirmDismiss: (direction) async {
+        bool success = await DownloadFileService().deleteHistoryTask(task.idCustom);
+        _downloadTask.removeWhere((element) => element.idCustom==task.idCustom);
+        return success;
       },
+      child: ListTile(
+        title: Text(task.fileName),
+        subtitle: Row(
+          children: [
+            Text(task.size.format()),
+            Spacer(),
+            if (Localizations.localeOf(context).toString() == 'es')
+              Text(DateFormat.jm().format(task.completedAt))
+            else
+              Text(DateFormat.Hm().format(task.completedAt)),
+          ],
+        ),
+        onTap: () async {
+          OpenResult openResult = await OpenFile.open(task.path);
+          print(openResult);
+        },
+      ),
     );
   }
 
@@ -130,7 +165,7 @@ class _HistoryFragmentState extends State<HistoryFragment> {
       _downloadTask.clear();
     }
     List<DownloadTask> downloads =
-        await DownloadTaskRepository().find(offset: 0, limit: 20, statusAnd: [
+        await DownloadFileService().findTasks(offset: 0, limit: 20, statusAnd: [
       DownloadTaskStatus.complete,
     ]);
 

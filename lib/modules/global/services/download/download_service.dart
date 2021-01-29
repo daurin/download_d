@@ -7,6 +7,7 @@ import 'package:flutter_background/flutter_background.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:mime/mime.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'db_download_creator.dart';
 import 'download_http_helper.dart';
 import 'download_notifications_service.dart';
 import 'models/active_download.dart';
@@ -20,28 +21,31 @@ import 'package:sqflite/sqflite.dart';
 
 import 'models/download_task_type.dart';
 
-abstract class DownloadService {
-  static bool _initialized = false;
+class DownloadService {
+  bool _initialized = false;
 
-  static List<ActiveDownload> _activeTasks = [];
+  List<ActiveDownload> _activeTasks = [];
 
-  static StreamController<List<DownloadTask>> _activeTaskStreamController;
-  static StreamController<List<DownloadTask>> _statusStreamController;
-  static StreamController<DownloadTask> _onCompleteTaskStream;
+  StreamController<List<DownloadTask>> _activeTaskStreamController;
+  StreamController<List<DownloadTask>> _statusStreamController;
+  StreamController<DownloadTask> _onCompleteTaskStream;
+  StreamController<DownloadTask> _statusChangeTaskStream;
 
-  static DownloadTaskRepository _downloadDb = DownloadTaskRepository();
+  DownloadTaskRepository _downloadDb;
 
-  static DownloadPreferencesRepository _downloadPreferences;
+  DownloadPreferencesRepository _downloadPreferences;
 
-  static DownloadPreferencesRepository get preferences => _downloadPreferences;
+  DownloadPreferencesRepository get preferences => _downloadPreferences;
 
-  static Stream<List<DownloadTask>> get activeTaskCountStream =>
+  Stream<List<DownloadTask>> get activeTaskCountStream =>
       _activeTaskStreamController?.stream;
 
-  static Stream<List<DownloadTask>> get statusStream =>
+  Stream<List<DownloadTask>> get statusStream =>
       _statusStreamController?.stream;
-  static Stream<DownloadTask> get onCompleteTaskStream =>
+  Stream<DownloadTask> get onCompleteTaskStream =>
       _onCompleteTaskStream?.stream;
+  Stream<DownloadTask> get statusChangeTaskStream =>
+      _statusChangeTaskStream?.stream;
 
   // static Stream<List<DownloadTask>> get runningTaskStream =>
   //     _statusStreamController?.stream?.where((event) {
@@ -69,60 +73,75 @@ abstract class DownloadService {
   static String file100mb = 'http://212.183.159.230/100MB.zip';
 
   static List<DownloadTask> _runningTaskStreamLastValue = [];
-  static bool _loadingGlobal = false;
-  static int _notificationIdHeader = 1;
+  bool _loadingGlobal = false;
+  int _notificationIdHeader = 1;
 
-  static Future<void> start({bool resume = true}) async {
-    if (_initialized) return;
-    _initialized = true;
-    _downloadPreferences = DownloadPreferencesRepository();
-    _activeTaskStreamController =
-        StreamController<List<DownloadTask>>.broadcast();
-    _statusStreamController = StreamController<List<DownloadTask>>.broadcast();
-    _onCompleteTaskStream = StreamController<DownloadTask>.broadcast();
-    await DownloadNotificationsService.initialize();
+  Future<void> start({
+    String id = 'downloads',
+    bool resume = true,
+  }) async {
+    try {
+      if (_initialized) return;
+      _initialized = true;
 
-    if (!await Permission.storage.isGranted) {
-      await Permission.storage.request();
-    }
+      // Database init
+      Database db = await DBDownloadCreator().init(id);
+      _downloadDb = DownloadTaskRepository(db);
 
-    List<DownloadTask> downloadsActive = await DownloadTaskRepository().find(
-      statusOr: [
-        DownloadTaskStatus.running,
-        DownloadTaskStatus.enqueued,
-        DownloadTaskStatus.paused,
-        DownloadTaskStatus.failed,
-        DownloadTaskStatus.failedConexion,
-      ],
-    );
+      _downloadPreferences = DownloadPreferencesRepository();
+      _activeTaskStreamController =
+          StreamController<List<DownloadTask>>.broadcast();
+      _statusStreamController =
+          StreamController<List<DownloadTask>>.broadcast();
+      _onCompleteTaskStream = StreamController<DownloadTask>.broadcast();
+      _statusChangeTaskStream = StreamController<DownloadTask>.broadcast();
+      await DownloadNotificationsService.initialize();
 
-    for (var element in downloadsActive) {
-      try {
-        element = element.copyWith(
-          sizeDownloaded: DataSize(bytes: await File(element.path).length()),
-        );
-        if (element.status == DownloadTaskStatus.running) {
-          element = element.copyWith(
-            status: DownloadTaskStatus.enqueued,
-          );
-        }
-      } catch (err) {}
-      _addActiveTask(
-        model: element,
+      if (!await Permission.storage.isGranted) {
+        await Permission.storage.request();
+      }
+
+      List<DownloadTask> downloadsActive = await _downloadDb.find(
+        statusOr: [
+          DownloadTaskStatus.running,
+          DownloadTaskStatus.enqueued,
+          DownloadTaskStatus.paused,
+          DownloadTaskStatus.failed,
+          DownloadTaskStatus.failedConexion,
+        ],
       );
-    }
-    _notifyActiveTaskStream();
 
-    if (resume)
-      await resumeEnqueue();
-    else {}
+      for (var element in downloadsActive) {
+        try {
+          element = element.copyWith(
+            sizeDownloaded: DataSize(bytes: await File(element.path).length()),
+          );
+          if (element.status == DownloadTaskStatus.running) {
+            element = element.copyWith(
+              status: DownloadTaskStatus.enqueued,
+            );
+          }
+        } catch (err) {}
+        _addActiveTask(
+          model: element,
+        );
+      }
+      _notifyActiveTaskStream();
+
+      if (resume)
+        await resumeEnqueue();
+      else {}
+    } catch (err) {
+      print(err);
+    }
   }
 
-  static Future<void> stop() async {
+  Future<void> stop() async {
     if (!_initialized) return;
     await _activeTaskStreamController.close();
     await _statusStreamController.close();
     await _onCompleteTaskStream.close();
+    await _statusChangeTaskStream.close();
     await DownloadNotificationsService.cancelAll();
     _initialized = false;
   }
@@ -148,7 +167,7 @@ abstract class DownloadService {
   static bool get isBackgroundExecutionEnabled =>
       FlutterBackground.isBackgroundExecutionEnabled;
 
-  static Future<void> addTask({
+  Future<void> addTask({
     String id,
     @required String url,
     @required String saveDir,
@@ -160,6 +179,7 @@ abstract class DownloadService {
     String displayName,
     Duration duration,
     String thumbnailUrl,
+    Map<String, dynamic> metadata,
   }) async {
     HttpClientResponse responseHead = await DownloadHttpHelper.head(
       url: url,
@@ -176,7 +196,7 @@ abstract class DownloadService {
       displayName = fileName;
     }
 
-    DownloadTaskStatus status = DownloadTaskStatus.enqueued;
+    DownloadTaskStatus status = DownloadTaskStatus.paused;
 
     try {
       if (id == null) id = DateTime.now().millisecondsSinceEpoch.toString();
@@ -196,24 +216,25 @@ abstract class DownloadService {
         resumable: responseHead.headers['Accept-Ranges'] != null,
         duration: duration,
         thumbnailUrl: thumbnailUrl,
+        metadata: metadata,
       );
-      DownloadTask task = await DownloadTaskRepository().findByIdCustom(id);
+      DownloadTask task = await _downloadDb.findByIdCustom(id);
       _addActiveTask(
         model: task.copyWith(
-          status: DownloadTaskStatus.paused,
+          status: status,
         ),
       );
-      _getActiveTask(id)?.emitStatus(DownloadTaskStatus.paused);
+      _getActiveTask(id)?.emitStatus(status);
       _notifyActiveTaskStream();
       if (autoStart) await resume(id);
     } on DatabaseException catch (err) {
-      DownloadTask task = await DownloadTaskRepository().findByIdCustom(id);
+      DownloadTask task = await _downloadDb.findByIdCustom(id);
       _addActiveTask(
         model: task.copyWith(
-          status: DownloadTaskStatus.paused,
+          status: status,
         ),
       );
-      _getActiveTask(id)?.emitStatus(DownloadTaskStatus.paused);
+      _getActiveTask(id)?.emitStatus(status);
       _notifyActiveTaskStream();
       if (autoStart) await resume(id);
       print(err);
@@ -222,7 +243,7 @@ abstract class DownloadService {
     }
   }
 
-  static Future<void> resumeAll() async {
+  Future<void> resumeAll() async {
     try {
       if (_loadingGlobal) return;
       _loadingGlobal = true;
@@ -248,7 +269,7 @@ abstract class DownloadService {
     _loadingGlobal = false;
   }
 
-  static Future<void> resumeEnqueue() async {
+  Future<void> resumeEnqueue() async {
     if (_loadingGlobal) return;
     _loadingGlobal = true;
     List<ActiveDownload> tasks = _activeTasks.where((element) {
@@ -268,7 +289,7 @@ abstract class DownloadService {
     _loadingGlobal = false;
   }
 
-  static Future<void> pauseAll({bool resumeEnqueueTask = true}) async {
+  Future<void> pauseAll({bool resumeEnqueueTask = true}) async {
     try {
       if (_loadingGlobal) return;
       _loadingGlobal = true;
@@ -293,31 +314,31 @@ abstract class DownloadService {
     _loadingGlobal = false;
   }
 
-  static Future<void> pause(String idTask,
-      {bool resumeEnqueueTask = true}) async {
-    DownloadTask task = await DownloadTaskRepository().findByIdCustom(idTask);
+  Future<void> pause(String idTask, {bool resumeEnqueueTask = true}) async {
+    DownloadTask task = await _downloadDb.findByIdCustom(idTask);
     ActiveDownload activeDownload = _getActiveTask(idTask);
     if (activeDownload?.changingStatus ?? false) return;
     try {
       activeDownload?.cancelableOperation?.cancel();
       _addActiveTask(
-        model: task.copyWith(
+        model: activeDownload.task.copyWith(
           status: DownloadTaskStatus.paused,
-          sizeDownloaded: DataSize(
-              bytes: await File(task.path).length().catchError((err) => 0)),
+          // sizeDownloaded: DataSize(
+          //   bytes: await File(task.path).length().catchError((err) => 0),
+          // ),
         ),
         changingStatus: true,
       );
       activeDownload.emitStatus(DownloadTaskStatus.paused);
       await activeDownload?.cancelableOperation?.cancel();
-      await DownloadTaskRepository().update(
+      await _downloadDb.update(
         status: DownloadTaskStatus.paused,
         whereEquals: {
           'id_custom': idTask,
         },
       );
       _addActiveTask(
-        model: task.copyWith(
+        model: activeDownload.task.copyWith(
           status: DownloadTaskStatus.paused,
         ),
         changingStatus: false,
@@ -330,38 +351,38 @@ abstract class DownloadService {
       if (resumeEnqueueTask) await resumeEnqueue();
     } catch (err) {
       _addActiveTask(
-        model: task.copyWith(),
+        model: activeDownload.task.copyWith(),
         changingStatus: false,
       );
       print(err);
     }
   }
 
-  static Future<bool> cancel(
+  Future<bool> cancel(
     String idTask, {
     bool deleteFile = true,
     bool clearHistory = true,
   }) async {
     try {
-      DownloadTask task = await DownloadTaskRepository().findByIdCustom(idTask);
+      DownloadTask task = await _downloadDb.findByIdCustom(idTask);
       _addActiveTask(
         model: task.copyWith(
           status: DownloadTaskStatus.canceled,
         ),
       );
       ActiveDownload activeDownload = _getActiveTask(idTask);
-      activeDownload?.cancelableOperation?.cancel();
+      await activeDownload?.cancelableOperation?.cancel();
       if (deleteFile) {
         await File(task.path).delete().catchError((err) {});
       }
       if (clearHistory) {
-        await DownloadTaskRepository().deleteByCustomId(idTask);
+        await _downloadDb.deleteByCustomId(idTask);
         activeDownload?.emitStatus(DownloadTaskStatus.canceled);
 
         activeDownload?.receivedStreamController?.add(DataSize.zero);
         activeDownload?.speedDownloadStreamController?.add(DataSize.zero);
       } else {
-        await DownloadTaskRepository().update(
+        await _downloadDb.update(
           status: DownloadTaskStatus.canceled,
           whereEquals: {
             'id_custom': idTask,
@@ -381,6 +402,8 @@ abstract class DownloadService {
       }
       await DownloadNotificationsService.cancel(task.id);
 
+      await resumeEnqueue();
+
       return true;
     } catch (err) {
       print(err);
@@ -388,7 +411,7 @@ abstract class DownloadService {
     }
   }
 
-  static Future<void> cancelAll({
+  Future<void> cancelAll({
     bool deleteFile = true,
     bool clearHistory = false,
   }) async {
@@ -414,7 +437,7 @@ abstract class DownloadService {
     }
   }
 
-  static Future<bool> resume(String idTask) async {
+  Future<bool> resume(String idTask) async {
     ActiveDownload activeDownload = _getActiveTask(idTask);
 
     if ((activeDownload?.changingStatus ?? false) ||
@@ -443,7 +466,7 @@ abstract class DownloadService {
 
       if (runningTask.length >= _downloadPreferences.simultaneousDownloads) {
         if (activeDownload.task.status != DownloadTaskStatus.enqueued) {
-          await DownloadTaskRepository().update(
+          await _downloadDb.update(
             status: DownloadTaskStatus.enqueued,
             whereEquals: {
               'id_custom': idTask,
@@ -460,8 +483,7 @@ abstract class DownloadService {
 
         return false;
       }
-      DownloadTask downloadTask =
-          await DownloadTaskRepository().findByIdCustom(idTask);
+      DownloadTask downloadTask = await _downloadDb.findByIdCustom(idTask);
       int lastCallUpdateNotification = DateTime.now().millisecondsSinceEpoch;
 
       if (await File(downloadTask.path).exists()) {
@@ -470,7 +492,7 @@ abstract class DownloadService {
           await File(downloadTask.path).delete();
         }
       }
-      await DownloadTaskRepository().update(
+      await _downloadDb.update(
         status: DownloadTaskStatus.running,
         whereEquals: {
           'id_custom': idTask,
@@ -513,9 +535,7 @@ abstract class DownloadService {
           _addActiveTask(
             model: downloadTask,
           );
-          if (!(activeDownload?.receivedStreamController?.isClosed ?? false)) {
-            activeDownload?.receivedStreamController?.add(received);
-          }
+          activeDownload?.receivedStreamController?.add(received);
 
           if ((DateTime.now().millisecondsSinceEpoch -
                   lastCallUpdateNotification) >
@@ -552,7 +572,7 @@ abstract class DownloadService {
             model: downloadTask,
           );
           _getActiveTask(idTask)?.emitStatus(DownloadTaskStatus.complete);
-          await DownloadTaskRepository().update(
+          await _downloadDb.update(
             status: DownloadTaskStatus.complete,
             completedAt: DateTime.now(),
             whereEquals: {'id_custom': idTask},
@@ -596,7 +616,7 @@ abstract class DownloadService {
             model: downloadTask,
           );
           _getActiveTask(idTask)?.emitStatus(newStatus);
-          await DownloadTaskRepository().update(
+          await _downloadDb.update(
             status: newStatus,
             completedAt: DateTime.now(),
             whereEquals: {'id_custom': idTask},
@@ -628,7 +648,7 @@ abstract class DownloadService {
       );
       return true;
     } catch (err) {
-      await DownloadTaskRepository().update(
+      await _downloadDb.update(
         status: DownloadTaskStatus.failed,
         whereEquals: {'id_custom': idTask},
       );
@@ -643,7 +663,7 @@ abstract class DownloadService {
     return false;
   }
 
-  static Future<void> retry(String idTask) async {
+  Future<void> retry(String idTask) async {
     ActiveDownload active = _getActiveTask(idTask);
     if (active.task.status == DownloadTaskStatus.failed) {
       _addActiveTask(
@@ -654,13 +674,13 @@ abstract class DownloadService {
     await resume(idTask);
   }
 
-  static Future<List<DownloadTask>> findTasks({
+  Future<List<DownloadTask>> findTasks({
     List<DownloadTaskStatus> statusAnd,
     int offset = 0,
     int limit,
     DownloadTaskType type,
   }) async {
-    List<DownloadTask> tasks = await DownloadTaskRepository().find(
+    List<DownloadTask> tasks = await _downloadDb.find(
       offset: offset,
       limit: limit,
       statusAnd: statusAnd,
@@ -679,26 +699,34 @@ abstract class DownloadService {
     return tasks;
   }
 
-  static Future<DownloadTask> findTask(String idTask) {
-    return DownloadTaskRepository().findByIdCustom(idTask);
+  Future<DownloadTask> findTask(String idTask) {
+    return _downloadDb.findByIdCustom(idTask);
   }
 
-  static Future<void> deleteTask(String idTask) async {
-    await DownloadTaskRepository().deleteByCustomId(idTask);
+  Future<bool> deleteHistoryTask(
+    String idTask, {
+    bool deleteFile = false,
+  }) async {
+    if (deleteFile) {
+      DownloadTask download=await _downloadDb.findByIdCustom(idTask);
+      await File(download.path).delete().catchError((err){});
+    }
+      int affected = await _downloadDb.deleteByCustomId(idTask);
+      return affected>0;
   }
 
-  static void _addActiveTask({
+  void _addActiveTask({
     @required DownloadTask model,
     CancelableOperation<void> cancelableOperation,
     bool changingStatus,
   }) {
-    ActiveDownload task = _activeTasks.firstWhere((element) {
+    ActiveDownload active = _activeTasks.firstWhere((element) {
       DownloadTask task = element.task;
       return task.id == model.id;
     }, orElse: () => null);
 
-    if (task == null) {
-      _activeTasks.add(ActiveDownload(
+    if (active == null) {
+      ActiveDownload newActiveDownload = ActiveDownload(
           task: model,
           receivedStreamController: StreamController<DataSize>.broadcast(),
           speedDownloadStreamController: StreamController<DataSize>.broadcast(),
@@ -706,10 +734,12 @@ abstract class DownloadService {
               StreamController<DownloadTaskStatus>.broadcast(),
           cancelableOperation: cancelableOperation,
           changingStatus: changingStatus,
-          onEmitStatus: (DownloadTask task) {
+          onEmitStatus: (DownloadTask event) {
+            ActiveDownload activeTask = _getActiveTask(event.idCustom);
+            print(event);
             _addActiveTask(
-              model: task.copyWith(
-                status: task.status,
+              model: event.copyWith(
+                status: event.status,
               ),
             );
             List<DownloadTask> tasks = _activeTasks
@@ -717,8 +747,11 @@ abstract class DownloadService {
                 .map((e) => e.task)
                 .toList();
 
-            if (task.status == DownloadTaskStatus.complete)
-              _onCompleteTaskStream?.add(task);
+            _statusChangeTaskStream?.add(event);
+            if (event.status == DownloadTaskStatus.complete)
+              _onCompleteTaskStream?.add(event);
+
+            activeTask?.statusStreamController?.add(event.status);
 
             _statusStreamController?.add(tasks);
             if (tasks.length != _runningTaskStreamLastValue.length) {
@@ -729,14 +762,19 @@ abstract class DownloadService {
             if (!isEqual) {
               _runningTaskStreamLastValue = tasks.toList();
             }
-          }));
+          });
+      _activeTasks.add(newActiveDownload);
+      newActiveDownload.statusStreamController.sink
+          .add(newActiveDownload.task.status);
+      newActiveDownload.receivedStreamController.sink
+          .add(newActiveDownload.task.sizeDownloaded);
     } else {
       // ActiveDownload activeTask = tasks.firstWhere(
       //   (e) => e.task.idCustom == model.idCustom,
       //   orElse: () => null,
       // );
-      if (task != null) {
-        _activeTasks[_activeTasks.indexOf(task)] = task = task.copyWith(
+      if (active != null) {
+        _activeTasks[_activeTasks.indexOf(active)] = active = active.copyWith(
           task: model,
           cancelableOperation: cancelableOperation,
           changingStatus: changingStatus,
@@ -745,7 +783,7 @@ abstract class DownloadService {
     }
   }
 
-  static Future<void> _removeActiveTask(String idTask) async {
+  Future<void> _removeActiveTask(String idTask) async {
     ActiveDownload activeTask = _activeTasks.firstWhere(
       (e) => e.task.idCustom == idTask,
       orElse: () => null,
@@ -756,7 +794,7 @@ abstract class DownloadService {
     _activeTasks.remove(activeTask);
   }
 
-  static ActiveDownload _getActiveTask(String idTask) {
+  ActiveDownload _getActiveTask(String idTask) {
     ActiveDownload task = _activeTasks.firstWhere(
       (element) => element.task.idCustom == idTask,
       orElse: () => null,
@@ -770,7 +808,7 @@ abstract class DownloadService {
   //   return activeDownload.task;
   // }
 
-  static List<DownloadTask> get activeTasks {
+  List<DownloadTask> get activeTasks {
     List<DownloadTask> tasks = _activeTasks.map((e) {
       return e.task;
     }).toList();
@@ -778,24 +816,24 @@ abstract class DownloadService {
     return tasks;
   }
 
-  static DownloadTask activeTask(String idTask) {
+  DownloadTask activeTask(String idTask) {
     return _getActiveTask(idTask)?.task ?? null;
   }
 
-  static Stream<DataSize> receibedStream(String idTask) {
+  Stream<DataSize> receibedStream(String idTask) {
     return _getActiveTask(idTask)?.receivedStreamController?.stream ?? null;
   }
 
-  static Stream<DataSize> speedDownloadStream(String idTask) {
+  Stream<DataSize> speedDownloadStream(String idTask) {
     return _getActiveTask(idTask)?.speedDownloadStreamController?.stream ??
         null;
   }
 
-  static Stream<DownloadTaskStatus> statusTaskStream(String idTask) {
+  Stream<DownloadTaskStatus> statusTaskStream(String idTask) {
     return _getActiveTask(idTask)?.statusStreamController?.stream ?? null;
   }
 
-  static void _notifyActiveTaskStream() {
+  void _notifyActiveTaskStream() {
     List<DownloadTask> tasks = _activeTasks.map((e) => e.task).toList();
     tasks.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     _activeTaskStreamController.add(tasks);

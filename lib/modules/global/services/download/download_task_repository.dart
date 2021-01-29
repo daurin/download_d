@@ -1,24 +1,20 @@
 import 'dart:convert';
-import 'package:download_d/db/DB.dart';
 import 'package:flutter/foundation.dart';
-
+import 'package:sqflite/sqlite_api.dart';
 import 'models/data_size.dart';
 import 'models/download_task.dart';
 import 'models/download_task_status.dart';
 import 'models/download_task_type.dart';
 
 class DownloadTaskRepository {
-  static final DownloadTaskRepository _singleton =
-      DownloadTaskRepository._internal();
+  Database _db;
 
-  factory DownloadTaskRepository() {
-    return _singleton;
+  DownloadTaskRepository(Database db){
+    this._db=db;
   }
 
   static const String tableName = 'DOWNLOAD_TASK';
   static const String dataFormat = 'yyyy-MM-dd-hh:mm:ss.mmmuuu';
-
-  DownloadTaskRepository._internal();
 
   // "url" TEXT NOT NULL,
   //   "status" INTEGER NOT NULL,
@@ -49,10 +45,11 @@ class DownloadTaskRepository {
     DateTime completedAt,
     Duration duration,
     String thumbnailUrl,
+    Map<String,dynamic> metadata,
   }) async {
-    final db = DB.db;
+    
 
-    return db.insert(
+    return _db.insert(
       tableName,
       {
         'id_custom': idCustom,
@@ -74,6 +71,7 @@ class DownloadTaskRepository {
             completedAt != null ? completedAt.millisecondsSinceEpoch : null,
         'duration': duration != null ? duration.inMilliseconds : null,
         'thumbnail_url': thumbnailUrl,
+        'metadata' : metadata != null ? jsonEncode(metadata) : null,
       },
     );
   }
@@ -98,10 +96,11 @@ class DownloadTaskRepository {
     DateTime completedAt,
     Duration duration,
     String thumbnailUrl,
+    Map<String, dynamic> metadata,
     Map<String, dynamic> whereEquals,
     Map<String, dynamic> whereDistinct,
   }) async {
-    final db = DB.db;
+    
 
     String where = '';
     List<String> whereAndFields = [];
@@ -132,6 +131,7 @@ class DownloadTaskRepository {
       });
     if (duration != null) values.addAll({'duration': duration.inMilliseconds});
     if (thumbnailUrl != null) values.addAll({'thumbnail_url': thumbnailUrl});
+    if (metadata != null) values.addAll({'metadata': jsonEncode(metadata)});
 
     where = (whereEquals ?? {}).length == 0
         ? ''
@@ -178,7 +178,7 @@ class DownloadTaskRepository {
 
     print(where);
 
-    int id = await db.update(
+    int id = await _db.update(
       tableName,
       values,
       where: whereAndFields.join(' AND '),
@@ -207,7 +207,7 @@ class DownloadTaskRepository {
     DateTime createdAtGt,
     DownloadTaskType type,
   }) async {
-    final db = DB.db;
+    
     String query = '';
     List<String> whereAnd = [];
     List<String> whereOr = [];
@@ -236,7 +236,7 @@ class DownloadTaskRepository {
     }
     query += "ORDER BY created_at DESC LIMIT ${limit ?? -1} OFFSET $offset;";
 
-    List<Map<String, dynamic>> res = await db.rawQuery(query);
+    List<Map<String, dynamic>> res = await _db.rawQuery(query);
     List<DownloadTask> task = res
         .map((item) => DownloadTask.fromMap(Map<String, dynamic>.from(item)))
         .toList();
@@ -252,8 +252,8 @@ class DownloadTaskRepository {
   }
 
   Future<DownloadTask> _findByField(Map<String, dynamic> fields) async {
-    final db = DB.db;
-    List<Map<String, dynamic>> res = await db.query(tableName,
+    
+    List<Map<String, dynamic>> res = await _db.query(tableName,
         where: (fields ?? {}).length == 0
             ? null
             : fields.entries
@@ -273,12 +273,12 @@ class DownloadTaskRepository {
   }
 
   Future<int> _deleteByField(Map<String, dynamic> fields) async {
-    final db = DB.db;
+    
     List<MapEntry<String, dynamic>> where = fields.entries.map((e) {
       return e;
     }).toList();
 
-    int affected = await db.delete(tableName,
+    int affected = await _db.delete(tableName,
         where: where.length == 0
             ? null
             : where

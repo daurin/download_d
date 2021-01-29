@@ -1,4 +1,5 @@
 import 'package:download_d/modules/global/services/download/download_preferences_repository.dart';
+import 'package:download_d/modules/global/services/download/singleton/download_file_service.dart';
 import 'package:flutter/material.dart';
 
 class NotificationsSettingsPage extends StatefulWidget {
@@ -18,7 +19,7 @@ class _NotificationsSettingsPageState extends State<NotificationsSettingsPage> {
   @override
   void initState() {
     super.initState();
-    _downloadPreferences=DownloadPreferencesRepository();
+    _downloadPreferences=DownloadFileService().preferences;
     _enabledNotifications=_downloadPreferences.enabledNotifications;
     _showProgressBarNotifications=_downloadPreferences.showProgressBarNotifications;
     _notifyOnFinished=_downloadPreferences.notifyOnFinished;

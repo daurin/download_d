@@ -83,11 +83,12 @@ class DownloadHttpHelper {
 
       cancelableCompleter = CancelableCompleter<void>(
         onCancel: () async {
-          timerOneSecond?.cancel();
-          response?.detachSocket();
-          request?.abort();
           await responseSubscription?.cancel();
           responseSubscription = null;
+          requestIsPaused=true;
+          timerOneSecond?.cancel();
+          await response?.detachSocket();
+          request?.abort();
         },
       );
 

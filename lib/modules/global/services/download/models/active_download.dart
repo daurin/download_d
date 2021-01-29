@@ -1,12 +1,11 @@
 import 'dart:async';
 import 'package:async/async.dart';
-
 import 'data_size.dart';
 import 'download_task.dart';
 import 'download_task_status.dart';
 
 class ActiveDownload {
-  final DownloadTask task;
+  DownloadTask task;
   final StreamController<DataSize> receivedStreamController;
   final StreamController<DataSize> speedDownloadStreamController;
   final StreamController<DownloadTaskStatus> statusStreamController;
@@ -48,7 +47,9 @@ class ActiveDownload {
   }
 
   void emitStatus(DownloadTaskStatus status) {
-    statusStreamController.add(status);
+    this.task=task.copyWith(
+      status: status,
+    );
     if (onEmitStatus != null)
       onEmitStatus(this.task.copyWith(
             status: status,

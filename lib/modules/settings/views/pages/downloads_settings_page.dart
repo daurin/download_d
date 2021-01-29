@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:download_d/modules/global/services/download/download_preferences_repository.dart';
+import 'package:download_d/modules/global/services/download/singleton/download_file_service.dart';
 import 'package:ext_storage/ext_storage.dart';
 import 'package:filesystem_picker/filesystem_picker.dart';
 import 'package:flutter/material.dart';
@@ -28,7 +29,7 @@ class _DownloadsSettingsPageState extends State<DownloadsSettingsPage> {
   @override
   void initState() {
     super.initState();
-    _downloadPreferences = DownloadPreferencesRepository();
+    _downloadPreferences = DownloadFileService().preferences;
     _downloadsPath=Directory(_downloadPreferences.downloadPath);
     _simultaneousDownloads = _downloadPreferences.simultaneousDownloads;
     _restartDownload = _downloadPreferences.restart;

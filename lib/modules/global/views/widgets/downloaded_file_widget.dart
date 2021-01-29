@@ -1,5 +1,5 @@
-import 'package:download_d/modules/global/services/download/download_service.dart';
 import 'package:download_d/modules/global/services/download/models/download_task.dart';
+import 'package:download_d/modules/global/services/download/singleton/download_file_service.dart';
 import 'package:flutter/material.dart';
 
 class DowloadedFileWidget extends StatefulWidget {
@@ -39,7 +39,7 @@ class _DowloadedFileWidgetState extends State<DowloadedFileWidget> {
 
   void _loadDownloadTask() async {
     try {
-      DownloadTask task = await DownloadService.findTask(widget.idTask);
+      DownloadTask task = await DownloadFileService().findTask(widget.idTask);
       setState(() {
         if (task != null)
           _snapshot =

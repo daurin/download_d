@@ -1,11 +1,12 @@
 import 'dart:async';
+import 'package:download_d/modules/downloads/views/widgets/add_task_dialog.dart';
 import 'package:download_d/modules/global/services/download/download_preferences_repository.dart';
-import 'package:download_d/modules/global/services/download/download_service.dart';
 import 'package:download_d/modules/global/services/download/models/download_task.dart';
-import 'package:download_d/modules/history/views/fragments/history_fragment.dart';
+import 'package:download_d/modules/global/services/download/singleton/download_file_service.dart';
+import 'package:download_d/modules/downloads/views/fragments/history_fragment.dart';
 import 'package:download_d/modules/home/views/fragments/queue_fragment.dart';
 import 'package:download_d/modules/home/views/widgets/appbar_home.dart';
-import 'package:download_d/modules/history/views/widgets/appbar_history.dart';
+import 'package:download_d/modules/downloads/views/widgets/appbar_history.dart';
 import 'package:ext_storage/ext_storage.dart';
 import 'package:flutter/material.dart';
 
@@ -31,17 +32,18 @@ class _HomePageState extends State<HomePage> {
 
     WidgetsBinding.instance.addPostFrameCallback((timeStamp) async {
       try {
-        await DownloadService.start(
+        await DownloadFileService().init(
           resume: !DownloadPreferencesRepository().lastStatusIsPaused,
         );
         _runningTaskSubscription =
-            DownloadService.statusStream.listen(_runningTaskListen);
-        _activeTaskSubscription =
-            DownloadService.activeTaskCountStream?.listen(_activeTaskListen);
-        _visibleResumeAll = DownloadService.activeTasks.length > 0;
+            DownloadFileService().statusStream.listen(_runningTaskListen);
+        _activeTaskSubscription = DownloadFileService()
+            .activeTaskCountStream
+            ?.listen(_activeTaskListen);
+        _visibleResumeAll = DownloadFileService().activeTasks.length > 0;
 
         _visibleResumeAll = false;
-        _visibleResumeAll = DownloadService.activeTasks.length > 0;
+        _visibleResumeAll = DownloadFileService().activeTasks.length > 0;
 
         if (DownloadPreferencesRepository().downloadPath == null) {
           String downloadDir = await ExtStorage.getExternalStorageDirectory();
@@ -62,6 +64,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void dispose() {
     _runningTaskSubscription?.cancel();
+    _activeTaskSubscription?.cancel();
     super.dispose();
   }
 
@@ -93,7 +96,7 @@ class _HomePageState extends State<HomePage> {
         floatingActionButton: _selectedFragment == 0 || _selectedFragment == 1
             ? FloatingActionButton(
                 child: Icon(Icons.add_rounded),
-                onPressed: () async {},
+                onPressed: _onTapFloatingButton,
               )
             : null,
         bottomNavigationBar: BottomNavigationBar(
@@ -161,5 +164,14 @@ class _HomePageState extends State<HomePage> {
       DownloadPreferencesRepository().lastStatusIsPaused = false;
     }
     print(DownloadPreferencesRepository().lastStatusIsPaused);
+  }
+
+  void _onTapFloatingButton() {
+    showDialog(
+      context: context,
+      builder: (context){
+        return AddTaskFragment();
+      }
+    );
   }
 }
