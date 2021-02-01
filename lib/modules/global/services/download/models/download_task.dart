@@ -16,7 +16,6 @@ class DownloadTask {
   final String fileName;
   final DataSize size;
   final DataSize sizeDownloaded;
-  final bool resumable;
   final String displayName;
   final bool showNotification;
   final String mimeType;
@@ -41,7 +40,6 @@ class DownloadTask {
     this.fileName,
     this.size,
     this.sizeDownloaded,
-    this.resumable,
     this.displayName,
     this.showNotification,
     this.mimeType,
@@ -71,7 +69,6 @@ class DownloadTask {
       size: map['size'] != null
           ? DataSize(bytes: int.parse(map['size'].toString()))
           : null,
-      resumable: map['resumable'] == 1,
       displayName: map['display_name'],
       showNotification: map['show_notification'] == 1,
       mimeType: map['mime_type'],
@@ -130,7 +127,6 @@ class DownloadTask {
       fileName: fileName ?? this.fileName,
       size: size ?? this.size,
       sizeDownloaded : sizeDownloaded ?? this.sizeDownloaded,
-      resumable: resumable ?? this.resumable,
       displayName: displayName ?? this.displayName,
       showNotification: showNotification ?? this.showNotification,
       mimeType: mimeType ?? this.mimeType,
@@ -160,4 +156,5 @@ class DownloadTask {
     if(mimeType.contains('video'))return DownloadTaskType.video;
     return null;
   }
+  bool get isResumable=>(size?.inBytes??0)>0;
 }

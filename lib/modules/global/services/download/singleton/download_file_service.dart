@@ -2,7 +2,7 @@ import 'package:download_d/modules/global/services/download/models/data_size.dar
 import 'package:download_d/modules/global/services/download/models/download_task.dart';
 import 'package:download_d/modules/global/services/download/models/download_task_status.dart';
 import 'package:download_d/modules/global/services/download/models/download_task_type.dart';
-
+import 'package:flutter/foundation.dart';
 import '../download_preferences_repository.dart';
 import '../download_service.dart';
 
@@ -28,8 +28,8 @@ class DownloadFileService {
 
   Future<void> addTask({
     String id,
-    String url,
-    String saveDir,
+    @required String url,
+    @required String saveDir,
     String fileName,
     Map<String, dynamic> headers,
     bool autoStart = false,
@@ -155,7 +155,4 @@ class DownloadFileService {
       type: type,
     );
   }
-}
-
-class DownloadMediaService {
 }

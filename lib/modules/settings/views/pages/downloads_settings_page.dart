@@ -16,10 +16,7 @@ class DownloadsSettingsPage extends StatefulWidget {
 }
 
 class _DownloadsSettingsPageState extends State<DownloadsSettingsPage> {
-  
   DownloadPreferencesRepository _downloadPreferences;
-  List<StorageInfo> _storageInfo;
-  Directory _rootDirectoryDownload;
   Directory _downloadsPath;
 
   int _simultaneousDownloads;
@@ -30,20 +27,14 @@ class _DownloadsSettingsPageState extends State<DownloadsSettingsPage> {
   void initState() {
     super.initState();
     _downloadPreferences = DownloadFileService().preferences;
-    _downloadsPath=Directory(_downloadPreferences.downloadPath);
+    _downloadsPath = Directory(_downloadPreferences.downloadPath);
     _simultaneousDownloads = _downloadPreferences.simultaneousDownloads;
     _restartDownload = _downloadPreferences.restart;
     _keepBackground = _downloadPreferences.keepBackground;
 
-    WidgetsBinding.instance.addPostFrameCallback((timeStamp) async{
-      _storageInfo=await PathProviderEx.getStorageInfo();
-      String _rootDir = await ExtStorage.getExternalStorageDirectory();
-      if(_rootDir.length>0)_rootDirectoryDownload=Directory(_storageInfo[0].rootDir); 
-      
-    });
+    WidgetsBinding.instance.addPostFrameCallback((timeStamp) async {});
   }
 
-      
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -55,22 +46,7 @@ class _DownloadsSettingsPageState extends State<DownloadsSettingsPage> {
           ListTile(
             title: Text('Carpeta para descargas'),
             subtitle: Text(_downloadsPath.path),
-            onTap: () async{
-              String path = await FilesystemPicker.open(
-                title: 'Carpeta para descargas',
-                context: context,
-                rootDirectory: _rootDirectoryDownload,
-                fsType: FilesystemType.folder,
-                pickText: 'Seleccionar esta carpeta',
-                // folderIconColor: Colors.teal,
-              );
-              if(path!=null){
-                _downloadPreferences.downloadPath=path;
-                setState(() {
-                  _downloadsPath=Directory(path);
-                });
-              }
-            },
+            onTap: _onTapDownloadPath,
           ),
           Divider(),
           ListTile(
@@ -126,5 +102,24 @@ class _DownloadsSettingsPageState extends State<DownloadsSettingsPage> {
         ],
       ),
     );
+  }
+
+  void _onTapDownloadPath() async {
+    String rootDir= await ExtStorage.getExternalStorageDirectory();
+
+    String path = await FilesystemPicker.open(
+      title: 'Carpeta para descargas',
+      context: context,
+      rootDirectory: Directory(rootDir),
+      fsType: FilesystemType.folder,
+      pickText: 'Seleccionar esta carpeta',
+      // folderIconColor: Colors.teal,
+    );
+    if (path != null) {
+      _downloadPreferences.downloadPath = path;
+      setState(() {
+        _downloadsPath = Directory(path);
+      });
+    }
   }
 }

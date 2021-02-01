@@ -46,16 +46,17 @@ class DownloadHttpHelper {
       request = await httpClient.getUrl(Uri.parse(url));
 
       bool fileExist = await file.exists();
+      print(file);
 
       if (fileExist && resume) {
         downloadedBytes = await file.length();
       } else if (fileExist) {
         await file.delete();
-        file=await file.create();
+        file = await file.create();
       } else {
-        file=await file.create();
+        file = await file.create();
       }
-      if (downloadedBytes > 0) {
+      if (downloadedBytes > 0 && resume) {
         request.headers
             .add('Range', 'bytes=' + downloadedBytes.toString() + '-');
       }
@@ -85,7 +86,7 @@ class DownloadHttpHelper {
         onCancel: () async {
           await responseSubscription?.cancel();
           responseSubscription = null;
-          requestIsPaused=true;
+          requestIsPaused = true;
           timerOneSecond?.cancel();
           await response?.detachSocket();
           request?.abort();
@@ -98,7 +99,7 @@ class DownloadHttpHelper {
         received += bytes.length;
         receivedInOneSeconds += bytes.length;
 
-        if (limitBandwidth != null) {
+        if ((limitBandwidth?.inBytes ?? 0) > 0 && contentLength > 0) {
           if (receivedInOneSeconds >= limitBandwidth.inBytes &&
               !requestIsPaused) {
             print('pause');
@@ -142,7 +143,8 @@ class DownloadHttpHelper {
         timerOneSecond?.cancel();
         httpClient.close();
         responseSubscription?.cancel();
-        if(onReceived!=null)onReceived(DataSize(bytes: received), DataSize(bytes: contentLength));
+        if (onReceived != null)
+          onReceived(DataSize(bytes: received), DataSize(bytes: contentLength));
         if (onComplete != null) onComplete();
       };
 
@@ -157,6 +159,12 @@ class DownloadHttpHelper {
       response = await request.close();
       contentLength = response.headers.contentLength;
       contentLength += downloadedBytes;
+
+      if (response.statusCode == 509) {
+        cancelableCompleter.operation?.cancel();
+        onError(HttpException('status code 509'));
+        return cancelableCompleter.operation;
+      }
 
       responseSubscription = response.listen(
         onListen,
@@ -178,10 +186,9 @@ class DownloadHttpHelper {
             // downloadedBytes = 0;
             // downloadedBytes = await file.length();
             // received = downloadedBytes??0;
-            request=null;
+            request = null;
             request = await httpClient.getUrl(Uri.parse(url));
-              request.headers
-                  .add('Range', 'bytes=' + received.toString() + '-');
+            request.headers.add('Range', 'bytes=' + received.toString() + '-');
             if (headers != null) {
               headers.forEach((key, value) {
                 request.headers.add(key, value);
@@ -189,8 +196,8 @@ class DownloadHttpHelper {
             }
 
             response = await request.close();
-             contentLength = response.headers.contentLength;
-             contentLength += downloadedBytes;
+            contentLength = response.headers.contentLength;
+            contentLength += downloadedBytes;
             responseSubscription = response.listen(
               onListen,
               onDone: onDone,

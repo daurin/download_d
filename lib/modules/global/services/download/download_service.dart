@@ -207,7 +207,7 @@ class DownloadService {
         saveDir: saveDir,
         fileName: fileName,
         displayName: displayName,
-        size: contentLenght != null ? DataSize(bytes: contentLenght) : null,
+        size: contentLenght != null ? DataSize(bytes: contentLenght) : -1,
         mimeType: lookupMimeType(fileName),
         headers: headers,
         showNotification: true,
@@ -525,7 +525,7 @@ class DownloadService {
         url: downloadTask.url,
         savePath: downloadTask.saveDir + '/' + downloadTask.fileName,
         headers: downloadTask.headers,
-        resume: downloadTask.resumable,
+        resume: downloadTask.isResumable,
         limitBandwidth: downloadTask.limitBandwidth,
         onReceibedDelayCall: Duration(milliseconds: 200),
         onReceived: (received, total) async {

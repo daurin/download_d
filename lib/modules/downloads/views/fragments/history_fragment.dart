@@ -136,8 +136,11 @@ class _HistoryFragmentState extends State<HistoryFragment> {
 
       // },
       confirmDismiss: (direction) async {
-        bool success = await DownloadFileService().deleteHistoryTask(task.idCustom);
-        _downloadTask.removeWhere((element) => element.idCustom==task.idCustom);
+        bool success =
+            await DownloadFileService().deleteHistoryTask(task.idCustom);
+        _downloadTask
+            .removeWhere((element) => element.idCustom == task.idCustom);
+        setState(() {});
         return success;
       },
       child: ListTile(

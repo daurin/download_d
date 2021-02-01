@@ -71,7 +71,7 @@ class QueueTile1 extends StatelessWidget {
     // subtitleItems.add('$statusString');
     subtitleItems.add(Text(' • '));
     if (status == DownloadTaskStatus.running)
-      subtitleItems.add(Text('${speedDownload?.format()}/sec'));
+      subtitleItems.add(Text('${speedDownload?.format()}/s'));
     else {
       subtitleItems.add(Text(
         statusString,
@@ -101,6 +101,7 @@ class QueueTile1 extends StatelessWidget {
                 child: WrapCircularProgressBar(
                   enable: showCircularProgress,
                   value: progress * 0.01,
+                  color: AlwaysStoppedAnimation(Theme.of(context).accentColor),
                   child: RawMaterialButton(
                     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     fillColor: Theme.of(context).primaryColor,

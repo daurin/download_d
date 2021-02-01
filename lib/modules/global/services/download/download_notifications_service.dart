@@ -92,14 +92,19 @@ abstract class DownloadNotificationsService {
     bool showProgress=true,
   }) async {
     if (sizeDownload == null) sizeDownload = DataSize.zero;
-    int progress = 0;
-    if ((sizeDownload?.inBytes ?? 0) > 0) {
+    int progress = -1;
+    if ((sizeDownload?.inBytes ?? 0) > 0 && (size?.inBytes ?? 0) > 0) {
       progress = (sizeDownload.inBytes * 100) ~/ size.inBytes;
     }
 
     String subtitle = '';
-    if ((size?.inBytes ?? 0) > 0 && (sizeDownload?.inBytes ?? 0) > 0) {
+    if (progress>=0) {
       subtitle += '$progress % (${sizeDownload.format()}/${size.format()}) ';
+      if ((speedDownload?.inBytes ?? 0) > 0)
+        subtitle += "${speedDownload.format()}/s";
+    }
+    else if(progress==-1){
+      subtitle += '${sizeDownload.format()} - ';
       if ((speedDownload?.inBytes ?? 0) > 0)
         subtitle += "${speedDownload.format()}/s";
     }
@@ -142,7 +147,7 @@ abstract class DownloadNotificationsService {
           'download_d_task_channel',
           'Download status',
           'El estado de las descargas',
-          showProgress: showProgress,
+          showProgress: showProgress && progress>=0,
           maxProgress: 100,
           progress: progress,
           groupKey: 'progress_tasks_group',

@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:download_d/modules/downloads/views/widgets/add_task_dialog.dart';
+import 'package:download_d/modules/downloads/views/widgets/add_task_dialog/add_task_dialog.dart';
 import 'package:download_d/modules/global/services/download/download_preferences_repository.dart';
 import 'package:download_d/modules/global/services/download/models/download_task.dart';
 import 'package:download_d/modules/global/services/download/singleton/download_file_service.dart';
@@ -170,7 +170,7 @@ class _HomePageState extends State<HomePage> {
     showDialog(
       context: context,
       builder: (context){
-        return AddTaskFragment();
+        return AddTaskDialog();
       }
     );
   }
