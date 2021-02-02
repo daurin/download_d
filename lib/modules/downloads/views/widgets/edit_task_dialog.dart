@@ -15,14 +15,18 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:string_validator/string_validator.dart';
 
-class AddTaskDialog extends StatefulWidget {
-  AddTaskDialog({Key key}) : super(key: key);
+class EditTaskDialog extends StatefulWidget {
+  final String idTask;
+  EditTaskDialog({
+    Key key,
+    @required this.idTask,
+  }) : super(key: key);
 
   @override
-  _AddTaskDialogState createState() => _AddTaskDialogState();
+  _EditTaskDialogState createState() => _EditTaskDialogState();
 }
 
-class _AddTaskDialogState extends State<AddTaskDialog>
+class _EditTaskDialogState extends State<EditTaskDialog>
     with SingleTickerProviderStateMixin {
   TextEditingController _linkTextController;
   PageController _pageController;
@@ -100,6 +104,7 @@ class _AddTaskDialogState extends State<AddTaskDialog>
                   keyboardType: TextInputType.multiline,
                   autocorrect: false,
                   autofocus: true,
+                  readOnly: true,
                   decoration: InputDecoration(
                     labelText: _downloadTasks.length > 1 ? 'Enlaces' : 'Enlace',
                     contentPadding: EdgeInsets.all(16),
@@ -323,37 +328,18 @@ class _AddTaskDialogState extends State<AddTaskDialog>
             }
           },
         );
-      }
-      else{
+      } else {
         setState(() {
           _downloadTasks.clear();
           _pageController.jumpTo(0);
-          _selectedLinkIndex=0;
+          _selectedLinkIndex = 0;
         });
       }
     }
   }
 
   Future<void> _fetchHeadLink(int index) async {
-    String link = _downloadTasks[index].url;
-    HttpClientResponse response = await DownloadHttpHelper.head(url: link);
-    if (response.statusCode < 300) {
-      String fileName;
-      if (response.redirects.length > 0)
-        fileName = basename(response.redirects.last.location.toString());
-      else
-        fileName = basename(link);
-
-      _downloadTasks[index] = DownloadTask(
-        url: link,
-        fileName: fileName,
-        saveDir: DownloadFileService().preferences.downloadPath,
-        size: DataSize(
-          bytes: response.headers.contentLength,
-        ),
-        status: DownloadTaskStatus.undefined,
-      );
-    }
+    
   }
 
   Future<void> _selectLink(int index) async {

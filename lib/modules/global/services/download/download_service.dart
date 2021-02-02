@@ -546,7 +546,7 @@ class DownloadService {
                 notificationId: downloadTask.id,
                 title: downloadTask.displayName,
                 sizeDownload: received,
-                size: total,
+                size: downloadTask.size,
                 speedDownload: lastSpeedDownload,
                 channelAction: AndroidNotificationChannelAction.update,
                 showProgress: _downloadPreferences.showProgressBarNotifications,

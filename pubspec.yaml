@@ -46,6 +46,7 @@ dependencies:
   collection: ^1.14.13
   string_validator: ^0.1.4
   shimmer: ^1.1.2
+  connectivity: ^2.0.2
 
 
   # The following adds the Cupertino Icons font to your application.

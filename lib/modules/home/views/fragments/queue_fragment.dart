@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:download_d/modules/downloads/views/widgets/edit_task_dialog.dart';
 import 'package:download_d/modules/global/models/download_style_item.dart';
 import 'package:download_d/modules/global/services/download/models/data_size.dart';
 import 'package:download_d/modules/global/services/download/models/download_task.dart';
@@ -121,7 +122,7 @@ class _QueueFragmentState extends State<QueueFragment> {
           ),
         ),
       ),
-      onDismissed: (direction)async{
+      onDismissed: (direction) async {
         await DownloadFileService().cancel(task.idCustom);
       },
       confirmDismiss: (direction) async {
@@ -167,6 +168,15 @@ class _QueueFragmentState extends State<QueueFragment> {
                         _downloadItemStyle == DownloadStyleItem.linear,
                     showCircularProgress:
                         _downloadItemStyle == DownloadStyleItem.circular,
+                    onTap: () {
+                      showDialog(
+                          context: context,
+                          builder: (context) {
+                            return EditTaskDialog(
+                              idTask: task.idCustom,
+                            );
+                          });
+                    },
                   );
                 },
               );
