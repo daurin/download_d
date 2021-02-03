@@ -248,10 +248,7 @@ class _AddTaskDialogState extends State<AddTaskDialog>
         TextButton(
           child: Text('Iniciar'),
           onPressed: _isValidLinks
-              ? () async {
-                  await _onTapStart();
-                  Navigator.pop(context);
-                }
+              ? () => _onTapStart(context)
               : null,
         ),
       ],
@@ -367,7 +364,7 @@ class _AddTaskDialogState extends State<AddTaskDialog>
   bool get _isValidLinks =>
       _errorTextLink == null && _linkTextController.text.trim().length > 0;
 
-  Future<void> _onTapStart() async {
+  Future<void> _onTapStart(BuildContext context) async {
     for (var item in _downloadTasks) {
       await DownloadFileService().addTask(
         id: item.idCustom,
@@ -377,5 +374,8 @@ class _AddTaskDialogState extends State<AddTaskDialog>
         limitBandwidth: item.limitBandwidth,
       );
     }
+    await DownloadFileService().resumeAll();
+
+    Navigator.pop(context);
   }
 }

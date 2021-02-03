@@ -24,13 +24,13 @@ class AppBarHome extends StatelessWidget implements PreferredSizeWidget {
       actions: [
         ButtonBar(
           children: [
-            TextButton(
-              child: Text('Test'),
-              style: TextButton.styleFrom(
-                primary: Colors.white,
-              ),
-              onPressed: _testDownload,
-            ),
+            // TextButton(
+            //   child: Text('Test'),
+            //   style: TextButton.styleFrom(
+            //     primary: Colors.white,
+            //   ),
+            //   onPressed: _testDownload,
+            // ),
             if (visibleResumeAll)
               StreamBuilder<List<DownloadTask>>(
                 stream: DownloadFileService().statusStream,

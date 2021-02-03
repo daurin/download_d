@@ -168,14 +168,21 @@ class _QueueFragmentState extends State<QueueFragment> {
                         _downloadItemStyle == DownloadStyleItem.linear,
                     showCircularProgress:
                         _downloadItemStyle == DownloadStyleItem.circular,
-                    onTap: () {
-                      showDialog(
-                          context: context,
-                          builder: (context) {
-                            return EditTaskDialog(
-                              idTask: task.idCustom,
-                            );
-                          });
+                    onTap: () async {
+                      bool resume=false;
+                      if(status?.data==DownloadTaskStatus.running){
+                        resume=true;
+                        await DownloadFileService().pause(task.idCustom);
+                      }
+                      await showDialog(
+                        context: context,
+                        builder: (context) {
+                          return EditTaskDialog(
+                            idTask: task.idCustom,
+                          );
+                        },
+                      );
+                      if(resume)await DownloadFileService().resume(task.idCustom);
                     },
                   );
                 },

@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:download_d/modules/global/blocs/connectivty_cubit/connectivity_cubit.dart';
 import 'package:download_d/modules/global/blocs/providers/bloc_providers.dart';
 import 'package:download_d/modules/home/views/pages/home_page/home_page.dart';
 import 'package:download_d/modules/settings/blocs/settings_display/settings_display_bloc.dart';
@@ -16,10 +17,24 @@ class App extends StatefulWidget {
   _AppState createState() => _AppState();
 }
 
-class _AppState extends State<App> {
+class _AppState extends State<App> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.detached) {
+      print('detached');
+    }
   }
 
   @override

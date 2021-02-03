@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'package:download_d/modules/downloads/views/widgets/add_task_dialog/add_task_dialog.dart';
+import 'package:download_d/modules/global/blocs/connectivty_cubit/connectivity_cubit.dart';
+import 'package:download_d/modules/global/blocs/connectivty_cubit/connectivity_cubit_state.dart';
 import 'package:download_d/modules/global/services/download/download_preferences_repository.dart';
 import 'package:download_d/modules/global/services/download/models/download_task.dart';
+import 'package:download_d/modules/global/services/download/models/download_task_status.dart';
 import 'package:download_d/modules/global/services/download/singleton/download_file_service.dart';
 import 'package:download_d/modules/downloads/views/fragments/history_fragment.dart';
 import 'package:download_d/modules/home/views/fragments/queue_fragment.dart';
@@ -9,6 +12,7 @@ import 'package:download_d/modules/home/views/widgets/appbar_home.dart';
 import 'package:download_d/modules/downloads/views/widgets/appbar_history.dart';
 import 'package:ext_storage/ext_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 class HomePage extends StatefulWidget {
   HomePage({Key key}) : super(key: key);
@@ -23,6 +27,7 @@ class _HomePageState extends State<HomePage> {
   StreamSubscription<List<DownloadTask>> _runningTaskSubscription;
   StreamSubscription<List<DownloadTask>> _activeTaskSubscription;
   bool _isLoading;
+  StreamSubscription<ConnectivityCubitState> _connectivitySubscription;
 
   @override
   void initState() {
@@ -32,6 +37,8 @@ class _HomePageState extends State<HomePage> {
 
     WidgetsBinding.instance.addPostFrameCallback((timeStamp) async {
       try {
+        await BlocProvider.of<ConnectivityCubit>(context).listenStatusConnection();
+        _connectivitySubscription=BlocProvider.of<ConnectivityCubit>(context).listen(_onConnectivityChanged);
         await DownloadFileService().init(
           resume: !DownloadPreferencesRepository().lastStatusIsPaused,
         );
@@ -65,6 +72,7 @@ class _HomePageState extends State<HomePage> {
   void dispose() {
     _runningTaskSubscription?.cancel();
     _activeTaskSubscription?.cancel();
+    _connectivitySubscription?.cancel();
     super.dispose();
   }
 
@@ -173,5 +181,20 @@ class _HomePageState extends State<HomePage> {
         return AddTaskDialog();
       }
     );
+  }
+
+  void _onConnectivityChanged(ConnectivityCubitState state)async{
+    if(state.hasConnection && DownloadFileService().preferences.restart){
+        List<DownloadTask> failedConnectionTasks=DownloadFileService().activeTasks.where((e) => e.status==DownloadTaskStatus.failedConexion).toList();
+        print(failedConnectionTasks);
+        if(failedConnectionTasks.length>0){
+          for (var item in failedConnectionTasks) {
+            await DownloadFileService().resume(item.idCustom);
+          }
+        }
+      // if(!DownloadFileService().preferences.lastStatusIsPaused){
+      //   await DownloadFileService().resumeAll();
+      // }
+    }
   }
 }

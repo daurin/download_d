@@ -46,7 +46,6 @@ class DownloadHttpHelper {
       request = await httpClient.getUrl(Uri.parse(url));
 
       bool fileExist = await file.exists();
-      print(file);
 
       if (fileExist && resume) {
         downloadedBytes = await file.length();

@@ -26,14 +26,11 @@ class EditTaskDialog extends StatefulWidget {
   _EditTaskDialogState createState() => _EditTaskDialogState();
 }
 
-class _EditTaskDialogState extends State<EditTaskDialog>
-    with SingleTickerProviderStateMixin {
+class _EditTaskDialogState extends State<EditTaskDialog> {
   TextEditingController _linkTextController;
   PageController _pageController;
   List<DownloadTask> _downloadTasks;
   List<String> _links;
-  AnimationController _animationshowLinkDetailsController;
-  bool _showLinkDetails = false;
   String _errorTextLink;
   int _selectedLinkIndex = 0;
   FocusNode _linkFocus;
@@ -42,22 +39,22 @@ class _EditTaskDialogState extends State<EditTaskDialog>
   @override
   void initState() {
     super.initState();
-    _initAnimations();
 
     _linkTextController = TextEditingController();
     _pageController = PageController(
       initialPage: 0,
     );
-    _linkTextController.addListener(_linkTextListener);
     _downloadTasks = [];
     _linkFocus = FocusNode();
     _fileNameFocus = FocusNode();
+    WidgetsBinding.instance.addPostFrameCallback((timeStamp) async {
+      await _loadTask();
+      setState(() {});
+    });
   }
 
   @override
   void dispose() {
-    _disposeAnimations();
-    _linkTextController.removeListener(_linkTextListener);
     _linkTextController.dispose();
     _pageController?.dispose();
     _fileNameFocus.dispose();
@@ -71,17 +68,14 @@ class _EditTaskDialogState extends State<EditTaskDialog>
       contentPadding: EdgeInsets.zero,
       title: AppBar(
         automaticallyImplyLeading: false,
-        title: Text('Nueva descarga'),
+        title: Text('Editar descarga'),
         actions: [
           ButtonBar(
             children: [
               IconButton(
-                icon: Icon(Icons.content_paste_rounded),
+                icon: Icon(Icons.save_rounded),
                 onPressed: () async {
-                  ClipboardData clipboardData =
-                      await Clipboard.getData('text/plain');
-                  if (clipboardData.text.length > 0)
-                    _linkTextController.text = clipboardData.text;
+                  _onTapSave(context);
                 },
               ),
             ],
@@ -103,10 +97,13 @@ class _EditTaskDialogState extends State<EditTaskDialog>
                   scrollPadding: EdgeInsets.zero,
                   keyboardType: TextInputType.multiline,
                   autocorrect: false,
-                  autofocus: true,
+                  autofocus: false,
                   readOnly: true,
+                  enabled: false,
                   decoration: InputDecoration(
                     labelText: _downloadTasks.length > 1 ? 'Enlaces' : 'Enlace',
+                    alignLabelWithHint: true,
+                    floatingLabelBehavior: FloatingLabelBehavior.always,
                     contentPadding: EdgeInsets.all(16),
                     errorText: (_errorTextLink ?? '').length > 0
                         ? 'Debe espificar un enlace valido'
@@ -183,59 +180,44 @@ class _EditTaskDialogState extends State<EditTaskDialog>
               //   ),
               // ),
               Flexible(
-                child: SizeTransition(
-                  sizeFactor: CurvedAnimation(
-                    curve: Curves.easeInOut,
-                    parent: _animationshowLinkDetailsController,
-                  ),
-                  axisAlignment: -1.0,
-                  child: FadeTransition(
-                    opacity: CurvedAnimation(
-                      curve: Curves.easeInOut,
-                      parent: _animationshowLinkDetailsController,
-                    ),
-                    child: Container(
-                      height: 290,
-                      child: PageView.builder(
-                        controller: _pageController,
-                        onPageChanged: (int index) {
+                child: Container(
+                  height: 290,
+                  child: PageView.builder(
+                    controller: _pageController,
+                    onPageChanged: (int index) {
+                      setState(() {
+                        _selectedLinkIndex = index;
+                      });
+                      if (_fileNameFocus.hasFocus) _fileNameFocus.unfocus();
+                    },
+                    //itemCount: _links.length == 0 ? 1 : _links.length,
+                    itemCount: _downloadTasks.length,
+                    itemBuilder: (context, index) {
+                      DownloadTask task = _downloadTasks[index];
+                      // return ListTileSkeleton();
+                      if (task.status == null) {
+                        return Column(
+                          children:
+                              List.generate(4, (index) => ListTileSkeleton()),
+                        );
+                      }
+                      return AddTaskDetails(
+                        key: ValueKey(
+                            index.toString() + (task?.status?.value ?? '')),
+                        task: task,
+                        link: _downloadTasks[index].url,
+                        fileNameFocus: _fileNameFocus,
+                        onChangeDownloadTask: (DownloadTask task) {
                           setState(() {
-                            _selectedLinkIndex = index;
+                            _downloadTasks[index] = task;
                           });
-                          _selectLink(index).then((value) {
-                            setState(() {});
-                          });
+                        },
+                        onTapDownloadPath: () {
+                          if (_linkFocus.hasFocus) _linkFocus.unfocus();
                           if (_fileNameFocus.hasFocus) _fileNameFocus.unfocus();
                         },
-                        //itemCount: _links.length == 0 ? 1 : _links.length,
-                        itemCount: _downloadTasks.length,
-                        itemBuilder: (context, index) {
-                          DownloadTask task = _downloadTasks[index];
-                          // return ListTileSkeleton();
-                          if (task.status == null) {
-                            return Column(
-                              children: List.generate(
-                                  4, (index) => ListTileSkeleton()),
-                            );
-                          }
-                          return AddTaskDetails(
-                            key: ValueKey(
-                                index.toString() + (task?.status?.value ?? '')),
-                            task: task,
-                            link: _downloadTasks[index].url,
-                            fileNameFocus: _fileNameFocus,
-                            onChangeDownloadTask: (DownloadTask task) {
-                              _downloadTasks[index] = task;
-                            },
-                            onTapDownloadPath: () {
-                              if (_linkFocus.hasFocus) _linkFocus.unfocus();
-                              if (_fileNameFocus.hasFocus)
-                                _fileNameFocus.unfocus();
-                            },
-                          );
-                        },
-                      ),
-                    ),
+                      );
+                    },
                   ),
                 ),
               ),
@@ -251,117 +233,32 @@ class _EditTaskDialogState extends State<EditTaskDialog>
           },
         ),
         TextButton(
-          child: Text('Iniciar'),
-          onPressed: _isValidLinks
-              ? () async {
-                  await _onTapStart();
-                  Navigator.pop(context);
-                }
-              : null,
+          child: Text('Guardar'),
+          onPressed: _isValidLinks ? () => _onTapSave(context) : null,
         ),
       ],
     );
   }
 
-  void _initAnimations() {
-    _animationshowLinkDetailsController = AnimationController(
-      vsync: this,
-      duration: Duration(milliseconds: 200),
-    );
-  }
-
-  void _disposeAnimations() {
-    _animationshowLinkDetailsController.dispose();
-  }
-
-  void _linkTextListener() {
-    // int breakLinesCount='\n'.allMatches(_linkTextController.text).length;
-    LineSplitter ls = new LineSplitter();
-    List<String> lines = ls.convert(_linkTextController.text ?? '');
-    lines.removeWhere((element) => element.trim() == '');
-
-    if (!ListEquality().equals(lines, _links)) {
-      if (lines.length > 0) {
-        // setState(() {
-        //   _isValidLinks = null;
-        // });
-        Debounce.run(
-          Duration(milliseconds: 500),
-          () async {
-            if (_linkTextController.text.length == 0) {
-            } else {
-              _errorTextLink = null;
-              for (String link in lines) {
-                if (!isURL(link)) {
-                  _errorTextLink = 'Enlance invalido';
-                  break;
-                }
-              }
-            }
-            setState(() {});
-
-            if (_errorTextLink == null) {
-              _links = lines;
-              _downloadTasks = List.generate(
-                  lines.length,
-                  (index) => DownloadTask(
-                        idCustom:
-                            DateTime.now().millisecondsSinceEpoch.toString(),
-                        url: lines[index],
-                      ));
-              _showLinkDetails = true;
-              setState(() {});
-              if (_showLinkDetails &&
-                  _animationshowLinkDetailsController.status !=
-                      AnimationStatus.forward) {
-                _animationshowLinkDetailsController.forward();
-              }
-              await _selectLink(0);
-              setState(() {});
-            } else {
-              _showLinkDetails = false;
-              if (!_showLinkDetails &&
-                  _animationshowLinkDetailsController.status !=
-                      AnimationStatus.reverse) {
-                _animationshowLinkDetailsController.reverse();
-              }
-            }
-          },
-        );
-      } else {
-        setState(() {
-          _downloadTasks.clear();
-          _pageController.jumpTo(0);
-          _selectedLinkIndex = 0;
-        });
-      }
-    }
-  }
-
-  Future<void> _fetchHeadLink(int index) async {
-    
-  }
-
-  Future<void> _selectLink(int index) async {
-    DownloadTask downloadTask = _downloadTasks[index];
-    _selectedLinkIndex = index;
-    if (downloadTask.status == null) {
-      await _fetchHeadLink(index);
-    }
-  }
-
   bool get _isValidLinks =>
       _errorTextLink == null && _linkTextController.text.trim().length > 0;
 
-  Future<void> _onTapStart() async {
+  Future<void> _onTapSave(BuildContext context) async {
     for (var item in _downloadTasks) {
-      await DownloadFileService().addTask(
-        id: item.idCustom,
-        url: item.url,
+      await DownloadFileService().updateTask(
+        item.idCustom,
         fileName: item.fileName,
+        displayName: item.fileName,
         saveDir: item.saveDir,
         limitBandwidth: item.limitBandwidth,
       );
     }
+    Navigator.pop(context);
+  }
+
+  Future<void> _loadTask() async {
+    DownloadTask task = await DownloadFileService().findTask(widget.idTask);
+    _linkTextController.text = task.url;
+    _downloadTasks = [task];
   }
 }

@@ -112,16 +112,20 @@ class DownloadService {
       );
 
       for (var element in downloadsActive) {
+        DataSize sizeDownloaded;
         try {
+          sizeDownloaded = DataSize(bytes: await File(element.path).length());
+        } catch (err) {
+          print(err);
+        }
+        element = element.copyWith(
+          sizeDownloaded: sizeDownloaded,
+        );
+        if (element.status == DownloadTaskStatus.running) {
           element = element.copyWith(
-            sizeDownloaded: DataSize(bytes: await File(element.path).length()),
+            status: DownloadTaskStatus.enqueued,
           );
-          if (element.status == DownloadTaskStatus.running) {
-            element = element.copyWith(
-              status: DownloadTaskStatus.enqueued,
-            );
-          }
-        } catch (err) {}
+        }
         _addActiveTask(
           model: element,
         );
@@ -450,13 +454,6 @@ class DownloadService {
     );
 
     try {
-      if (_downloadPreferences.keepBackground) {
-        if (!FlutterBackground.isBackgroundExecutionEnabled) {
-          await enableForegroundService();
-          DownloadNotificationsService.showHeaderDownloadGroup(
-              notificationId: _notificationIdHeader);
-        }
-      }
       if (!await Permission.storage.isGranted) {
         await Permission.storage.request();
       }
@@ -646,6 +643,13 @@ class DownloadService {
         cancelableOperation: cancelableOperation,
         changingStatus: false,
       );
+      if (_downloadPreferences.keepBackground) {
+        if (!FlutterBackground.isBackgroundExecutionEnabled) {
+          await enableForegroundService();
+          DownloadNotificationsService.showHeaderDownloadGroup(
+              notificationId: _notificationIdHeader);
+        }
+      }
       return true;
     } catch (err) {
       await _downloadDb.update(
@@ -708,11 +712,69 @@ class DownloadService {
     bool deleteFile = false,
   }) async {
     if (deleteFile) {
-      DownloadTask download=await _downloadDb.findByIdCustom(idTask);
-      await File(download.path).delete().catchError((err){});
+      DownloadTask download = await _downloadDb.findByIdCustom(idTask);
+      await File(download.path).delete().catchError((err) {});
     }
-      int affected = await _downloadDb.deleteByCustomId(idTask);
-      return affected>0;
+    int affected = await _downloadDb.deleteByCustomId(idTask);
+    return affected > 0;
+  }
+
+  Future<bool> updateTask(
+    String idTask, {
+    String fileName,
+    String displayName,
+    String saveDir,
+    DataSize limitBandwidth,
+  }) async {
+    DownloadTask task;
+    if (fileName != null || saveDir != null) {
+      task = await _downloadDb.findByIdCustom(idTask);
+      bool fileExist = await File(task.path).exists();
+      if (task.saveDir != saveDir) {
+        if (fileExist)
+          await _moveFile(File(task.path), task.copyWith(saveDir: saveDir).path)
+              .catchError((err) {});
+        task = task.copyWith(saveDir: saveDir);
+      }
+      if (fileName != null) {
+        if (fileExist) {
+          if (task.path != task.copyWith(fileName: fileName).path) {
+            await File(task.path).copy(task.copyWith(fileName: fileName).path);
+            await File(task.path).delete();
+          }
+        }
+        task = task.copyWith(fileName: fileName);
+      }
+    }
+    int affected = await _downloadDb.update(
+      fileName: fileName,
+      displayName: displayName,
+      limitBandwidth: limitBandwidth,
+      saveDir: saveDir,
+      whereEquals: {
+        'id_custom': idTask,
+      },
+    );
+    if (task != null) {
+      task = task.copyWith(
+        displayName: displayName,
+      );
+      _addActiveTask(model: task);
+      _notifyActiveTaskStream();
+    }
+    return affected > 0;
+  }
+
+  Future<File> _moveFile(File sourceFile, String newPath) async {
+    try {
+      // prefer using rename as it is probably faster
+      return await sourceFile.rename(newPath);
+    } on FileSystemException catch (e) {
+      // if rename fails, copy the source file and then delete it
+      final newFile = await sourceFile.copy(newPath);
+      await sourceFile.delete();
+      return newFile;
+    }
   }
 
   void _addActiveTask({

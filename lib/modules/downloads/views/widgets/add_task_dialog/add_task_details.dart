@@ -34,7 +34,7 @@ class AddTaskDetails extends StatefulWidget {
 class _AddTaskDetailsState extends State<AddTaskDetails> {
   TextEditingController _fileNameController;
   DownloadTask _task;
-  double _limitDownloadSpeed = 1025;
+  double _limitDownloadSpeed;
 
   @override
   void initState() {
@@ -47,6 +47,9 @@ class _AddTaskDetailsState extends State<AddTaskDetails> {
     _fileNameController = TextEditingController(
       text: _task?.fileName ?? '',
     );
+    _limitDownloadSpeed = (_task?.limitBandwidth?.inKilobytes ?? 0) > 0
+        ? _task.limitBandwidth.inKilobytes?.toDouble()
+        : DataSize(megabytes: 2).inKilobytes.toDouble();
   }
 
   @override
@@ -100,14 +103,17 @@ class _AddTaskDetailsState extends State<AddTaskDetails> {
                     ),
                     child: Slider(
                       value: _limitDownloadSpeed,
+                      divisions: 100,
                       min: DataSize(kilobytes: 20).inKilobytes.toDouble(),
-                      max: DataSize(kilobytes: 1025).inKilobytes.toDouble(),
+                      max: DataSize(megabytes: 2).inKilobytes.toDouble(),
                       onChangeEnd: (value) {
-                        
                         _changeDownloadTask(_task.copyWith(
-                          limitBandwidth: value == 1025 ? 0 : DataSize(
-                            kilobytes: _limitDownloadSpeed.toInt(),
-                          ),
+                          limitBandwidth: value ==
+                                  DataSize(megabytes: 2).inKilobytes.toDouble()
+                              ? DataSize.zero
+                              : DataSize(
+                                  kilobytes: _limitDownloadSpeed.toInt(),
+                                ),
                         ));
                       },
                       onChanged: (value) {
@@ -125,12 +131,15 @@ class _AddTaskDetailsState extends State<AddTaskDetails> {
                   alignment: Alignment.centerRight,
                   child: Builder(builder: (context) {
                     String text;
-                    if (_limitDownloadSpeed >= 1025)
+                    if (_limitDownloadSpeed >=
+                        DataSize(megabytes: 2).inKilobytes.toInt())
                       text = 'Max';
                     else
                       text = DataSize(
-                            kilobytes: _limitDownloadSpeed.toInt(),
-                          ).format(decimals: 0) +
+                            kibibytes: _limitDownloadSpeed.toInt(),
+                          ).format(
+                            decimals: _limitDownloadSpeed > 1048 ? 1 : 0,
+                          ) +
                           '/s';
                     return Text(text);
                   }),

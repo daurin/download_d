@@ -16,17 +16,24 @@ class HistoryFragment extends StatefulWidget {
 
 class _HistoryFragmentState extends State<HistoryFragment> {
   List<DownloadTask> _downloadTask;
-
+  int _lastOffset = 0;
+  bool _isLoadingLoadTasks;
+  bool _isFinishPagination = false;
   StreamSubscription<DownloadTask> _onCompleteTaskSubscription;
+
+  GroupedItemScrollController _scrollController;
 
   @override
   void initState() {
     super.initState();
     _downloadTask = [];
 
+    _scrollController=GroupedItemScrollController();
+
     _onCompleteTaskSubscription =
         DownloadFileService().onCompleteTaskStream.listen((event) async {
       await _loadHistory(startPagination: true);
+      _scrollController.jumpTo(index: 0);
     });
 
     _loadHistory(startPagination: true);
@@ -62,45 +69,51 @@ class _HistoryFragmentState extends State<HistoryFragment> {
         ),
       );
     }
-    return StickyGroupedListView<DownloadTask, String>(
-      elements: _downloadTask,
-      groupBy: (DownloadTask element) =>
-          DateFormat('yyyy-MM-dd').format(element.completedAt),
-      floatingHeader: true,
-      groupSeparatorBuilder: (DownloadTask element) {
-        final now = DateTime.now();
-        final today = DateTime(now.year, now.month, now.day);
-        final yesterday = DateTime(now.year, now.month, now.day - 1);
-        final tomorrow = DateTime(now.year, now.month, now.day + 1);
-        DateTime completedAt = DateTime(element.completedAt.year,
-            element.completedAt.month, element.completedAt.day);
-        String dateFormatted;
-        if (completedAt == today)
-          dateFormatted = 'Hoy';
-        else if (completedAt == yesterday)
-          dateFormatted = 'Ayer';
-        else
-          dateFormatted =
-              DateFormat('yyyy-MM-dd', 'es').format(element.completedAt);
-        return Container(
-          child: ListTile(
-            tileColor: Theme.of(context).scaffoldBackgroundColor,
-            title: Text(
-              dateFormatted,
-              style: TextStyle(
-                color: Theme.of(context).hintColor,
+    return NotificationListener<ScrollNotification>(
+      onNotification: _onScrollNotification,
+      child: StickyGroupedListView<DownloadTask, String>(
+        itemScrollController: _scrollController,
+        padding: EdgeInsets.only(
+          bottom: 100,
+        ),
+        elements: _downloadTask,
+        groupBy: (DownloadTask element) =>
+            DateFormat('yyyy-MM-dd').format(element.completedAt),
+        floatingHeader: true,
+        groupSeparatorBuilder: (DownloadTask element) {
+          final now = DateTime.now();
+          final today = DateTime(now.year, now.month, now.day);
+          final yesterday = DateTime(now.year, now.month, now.day - 1);
+          final tomorrow = DateTime(now.year, now.month, now.day + 1);
+          DateTime completedAt = DateTime(element.completedAt.year,
+              element.completedAt.month, element.completedAt.day);
+          String dateFormatted;
+          if (completedAt == today)
+            dateFormatted = 'Hoy';
+          else if (completedAt == yesterday)
+            dateFormatted = 'Ayer';
+          else
+            dateFormatted =
+                DateFormat('yyyy-MM-dd', 'es').format(element.completedAt);
+          return Container(
+            child: ListTile(
+              tileColor: Theme.of(context).scaffoldBackgroundColor,
+              title: Text(
+                dateFormatted,
+                style: TextStyle(
+                  color: Theme.of(context).hintColor,
+                ),
               ),
             ),
-          ),
-        );
-      },
-      itemBuilder: (context, DownloadTask element) {
-        return _buildItem(element);
-      },
-      itemComparator: (element1, element2) =>
-          element1.completedAt.compareTo(element2.completedAt),
-      itemScrollController: GroupedItemScrollController(),
-      order: StickyGroupedListOrder.DESC,
+          );
+        },
+        itemBuilder: (context, DownloadTask element) {
+          return _buildItem(element);
+        },
+        itemComparator: (element1, element2) =>
+            element1.completedAt.compareTo(element2.completedAt),
+        order: StickyGroupedListOrder.DESC,
+      ),
     );
   }
 
@@ -164,16 +177,39 @@ class _HistoryFragmentState extends State<HistoryFragment> {
   }
 
   Future<void> _loadHistory({startPagination = false}) async {
+    _isLoadingLoadTasks = true;
     if (startPagination) {
+      _lastOffset = 0;
       _downloadTask.clear();
     }
-    List<DownloadTask> downloads =
-        await DownloadFileService().findTasks(offset: 0, limit: 20, statusAnd: [
-      DownloadTaskStatus.complete,
-    ]);
+    List<DownloadTask> downloads = await DownloadFileService().findTasks(
+      offset: _lastOffset,
+      limit: 10,
+      statusAnd: [
+        DownloadTaskStatus.complete,
+      ],
+    );
+    if (downloads.length == 0) _isFinishPagination = true;
+    _lastOffset += downloads.length;
 
     setState(() {
-      _downloadTask.addAll(downloads);
+      _isLoadingLoadTasks = false;
+      if (downloads.length > 0) _downloadTask.addAll(downloads);
     });
+  }
+
+  bool _onScrollNotification(ScrollNotification notification) {
+    if (notification is ScrollUpdateNotification) {
+      if (!_isLoadingLoadTasks &&
+          !_isFinishPagination &&
+          notification.metrics.pixels >
+              notification.metrics.maxScrollExtent - 100) {
+        print('pagination!!!');
+        _loadHistory();
+
+        return true;
+      }
+    }
+    return false;
   }
 }

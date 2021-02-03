@@ -9,8 +9,7 @@ import '../download_service.dart';
 class DownloadFileService {
   DownloadService _downloadService;
 
-  static final DownloadFileService _instance =
-      DownloadFileService._internal();
+  static final DownloadFileService _instance = DownloadFileService._internal();
   factory DownloadFileService() {
     return _instance;
   }
@@ -38,7 +37,7 @@ class DownloadFileService {
     String displayName,
     Duration duration,
     String thumbnailUrl,
-    Map<String,dynamic> metadata,
+    Map<String, dynamic> metadata,
   }) {
     return _downloadService.addTask(
       id: id,
@@ -81,6 +80,22 @@ class DownloadFileService {
 
   Future<DownloadTask> findTask(String idTask) {
     return _downloadService.findTask(idTask);
+  }
+
+  Future<bool> updateTask(
+    String idTask, {
+    String fileName,
+    String displayName,
+    String saveDir,
+    DataSize limitBandwidth,
+  }) {
+    return _downloadService.updateTask(
+      idTask,
+      fileName: fileName,
+      displayName: displayName,
+      saveDir: saveDir,
+      limitBandwidth: limitBandwidth,
+    );
   }
 
   Stream<DownloadTask> get onCompleteTaskStream =>
@@ -156,3 +171,4 @@ class DownloadFileService {
     );
   }
 }
+
