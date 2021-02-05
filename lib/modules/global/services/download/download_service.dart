@@ -154,7 +154,7 @@ class DownloadService {
     if (FlutterBackground.isBackgroundExecutionEnabled) return true;
     final androidConfig = FlutterBackgroundAndroidConfig(
       notificationTitle: 'Ejecutando servicio',
-      notificationText: 'Oshinstar se ejecuta en segundo plano',
+      notificationText: 'Dreamload se ejecuta en segundo plano',
     );
     bool success =
         await FlutterBackground.initialize(androidConfig: androidConfig);
@@ -503,6 +503,15 @@ class DownloadService {
       _notifyActiveTaskStream();
 
       // if(downloadTask.showNotification)await DownloadNotificationsService.showHeaderDownloadGroup(notificationId: _notificationIdHeader);
+
+      if (_downloadPreferences.keepBackground) {
+        if (!FlutterBackground.isBackgroundExecutionEnabled) {
+          await enableForegroundService();
+          DownloadNotificationsService.showHeaderDownloadGroup(
+              notificationId: _notificationIdHeader);
+        }
+      }
+
       if (_downloadPreferences.enabledNotifications)
         await DownloadNotificationsService.showProgressDownload(
           notificationId: downloadTask.id,
@@ -643,13 +652,6 @@ class DownloadService {
         cancelableOperation: cancelableOperation,
         changingStatus: false,
       );
-      if (_downloadPreferences.keepBackground) {
-        if (!FlutterBackground.isBackgroundExecutionEnabled) {
-          await enableForegroundService();
-          DownloadNotificationsService.showHeaderDownloadGroup(
-              notificationId: _notificationIdHeader);
-        }
-      }
       return true;
     } catch (err) {
       await _downloadDb.update(

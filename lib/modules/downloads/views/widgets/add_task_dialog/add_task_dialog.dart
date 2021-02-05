@@ -34,6 +34,7 @@ class _AddTaskDialogState extends State<AddTaskDialog>
   int _selectedLinkIndex = 0;
   FocusNode _linkFocus;
   FocusNode _fileNameFocus;
+  bool _isloadingAdd = false;
 
   @override
   void initState() {
@@ -241,13 +242,15 @@ class _AddTaskDialogState extends State<AddTaskDialog>
       actions: [
         TextButton(
           child: Text('Cancelar'),
-          onPressed: () {
-            Navigator.pop(context);
-          },
+          onPressed: _isloadingAdd
+              ? null
+              : () {
+                  Navigator.pop(context);
+                },
         ),
         TextButton(
           child: Text('Iniciar'),
-          onPressed: _isValidLinks
+          onPressed: _isValidLinks && !_isloadingAdd
               ? () => _onTapStart(context)
               : null,
         ),
@@ -300,6 +303,7 @@ class _AddTaskDialogState extends State<AddTaskDialog>
                         idCustom:
                             DateTime.now().millisecondsSinceEpoch.toString(),
                         url: lines[index],
+                        saveDir: DownloadFileService().preferences.downloadPath,
                       ));
               _showLinkDetails = true;
               setState(() {});
@@ -320,12 +324,11 @@ class _AddTaskDialogState extends State<AddTaskDialog>
             }
           },
         );
-      }
-      else{
+      } else {
         setState(() {
           _downloadTasks.clear();
           _pageController.jumpTo(0);
-          _selectedLinkIndex=0;
+          _selectedLinkIndex = 0;
         });
       }
     }
@@ -365,6 +368,8 @@ class _AddTaskDialogState extends State<AddTaskDialog>
       _errorTextLink == null && _linkTextController.text.trim().length > 0;
 
   Future<void> _onTapStart(BuildContext context) async {
+    _isloadingAdd = true;
+    setState(() {});
     for (var item in _downloadTasks) {
       await DownloadFileService().addTask(
         id: item.idCustom,
@@ -375,7 +380,6 @@ class _AddTaskDialogState extends State<AddTaskDialog>
       );
     }
     await DownloadFileService().resumeAll();
-
     Navigator.pop(context);
   }
 }

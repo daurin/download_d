@@ -20,7 +20,7 @@ class AppBarHome extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     return AppBar(
       key: ValueKey('afdsifhdsjgs'),
-      title: Text("Download D"),
+      title: Text("Dreamload"),
       actions: [
         ButtonBar(
           children: [

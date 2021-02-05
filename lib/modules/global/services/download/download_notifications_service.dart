@@ -9,7 +9,7 @@ abstract class DownloadNotificationsService {
   static int _notificationId = 1;
   static String _channelName = 'Downloads';
   static String _channelDescription =
-      'Downloads of Oshinstar documents and media files';
+      'Downloads documents and media files';
 
   static Future<void> initialize() async {
     _flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
@@ -55,7 +55,7 @@ abstract class DownloadNotificationsService {
   }) async {
     await _flutterLocalNotificationsPlugin.show(
       notificationId,
-      'Download D',
+      'Dreamload',
       'La aplicación se esta ejecutando en segundo plano',
       NotificationDetails(
         android: AndroidNotificationDetails(
