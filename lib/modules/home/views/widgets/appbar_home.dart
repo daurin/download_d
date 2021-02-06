@@ -1,3 +1,4 @@
+import 'package:download_d/modules/ads/ads_banner_home.dart';
 import 'package:download_d/modules/global/services/download/download_preferences_repository.dart';
 import 'package:download_d/modules/global/services/download/download_service.dart';
 import 'package:download_d/modules/global/services/download/models/download_task.dart';
@@ -83,9 +84,9 @@ class AppBarHome extends StatelessWidget implements PreferredSizeWidget {
                     onTap: () async {
                       Navigator.pop(context);
                       await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (context) => SettingsPage()));
+                        context,
+                        MaterialPageRoute(builder: (context) => SettingsPage()),
+                      );
                     },
                   ),
                   value: 'settings',
@@ -109,7 +110,8 @@ class AppBarHome extends StatelessWidget implements PreferredSizeWidget {
 
     await DownloadFileService().addTask(
       id: 'big_buck_bunny_720p_2mbgdfg',
-      url: 'https://www.sample-videos.com/video123/mp4/720/big_buck_bunny_720p_2mb.mp4',
+      url:
+          'https://www.sample-videos.com/video123/mp4/720/big_buck_bunny_720p_2mb.mp4',
       saveDir: DownloadPreferencesRepository().downloadPath,
     );
 

@@ -5,26 +5,31 @@ import 'package:flutter/material.dart';
 class SettingsDisplayState {
   final ThemeMode themeMode;
   final DownloadStyleItem downloadStyleItem;
+  final EdgeInsets paddingApp;
 
   SettingsDisplayState({
     this.themeMode,
     this.downloadStyleItem,
+    this.paddingApp,
   });
 
   static SettingsDisplayState get initialState {
     return SettingsDisplayState(
       themeMode: PrefApparenceLocalStorage().getThemeMode(),
       downloadStyleItem: PrefApparenceLocalStorage().downloadStyleItem,
+      paddingApp: EdgeInsets.zero,
     );
   }
 
   SettingsDisplayState copyWith({
     ThemeMode themeMode,
     DownloadStyleItem downloadStyleItem,
+    EdgeInsets paddingApp,
   }) {
     return SettingsDisplayState(
       themeMode: themeMode ?? this.themeMode,
       downloadStyleItem: downloadStyleItem ?? this.downloadStyleItem,
+      paddingApp: paddingApp ?? paddingApp,
     );
   }
 }

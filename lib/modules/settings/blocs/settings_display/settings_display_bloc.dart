@@ -15,10 +15,17 @@ class SettingsDisplayBloc extends Cubit<SettingsDisplayState> {
     ));
   }
 
-  Future<void> setDownloadStyleItem(DownloadStyleItem value) {
+  void setDownloadStyleItem(DownloadStyleItem value) {
     PrefApparenceLocalStorage().downloadStyleItem =value;
     emit(state.copyWith(
       downloadStyleItem: value,
     ));
   }
+
+  setPaddingApp(EdgeInsets padding){
+    emit(state.copyWith(
+      paddingApp: padding,
+    ));
+  }
+
 }

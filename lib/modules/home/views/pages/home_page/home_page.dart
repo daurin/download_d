@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:download_d/modules/ads/ads_banner_home.dart';
 import 'package:download_d/modules/downloads/views/widgets/add_task_dialog/add_task_dialog.dart';
 import 'package:download_d/modules/global/blocs/connectivty_cubit/connectivity_cubit.dart';
 import 'package:download_d/modules/global/blocs/connectivty_cubit/connectivity_cubit_state.dart';
@@ -10,7 +11,9 @@ import 'package:download_d/modules/downloads/views/fragments/history_fragment.da
 import 'package:download_d/modules/home/views/fragments/queue_fragment.dart';
 import 'package:download_d/modules/home/views/widgets/appbar_home.dart';
 import 'package:download_d/modules/downloads/views/widgets/appbar_history.dart';
+import 'package:download_d/modules/settings/blocs/settings_display/settings_display_bloc.dart';
 import 'package:ext_storage/ext_storage.dart';
+import 'package:firebase_admob/firebase_admob.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -37,8 +40,10 @@ class _HomePageState extends State<HomePage> {
 
     WidgetsBinding.instance.addPostFrameCallback((timeStamp) async {
       try {
-        await BlocProvider.of<ConnectivityCubit>(context).listenStatusConnection();
-        _connectivitySubscription=BlocProvider.of<ConnectivityCubit>(context).listen(_onConnectivityChanged);
+        await BlocProvider.of<ConnectivityCubit>(context)
+            .listenStatusConnection();
+        _connectivitySubscription = BlocProvider.of<ConnectivityCubit>(context)
+            .listen(_onConnectivityChanged);
         await DownloadFileService().init(
           resume: !DownloadPreferencesRepository().lastStatusIsPaused,
         );
@@ -60,6 +65,8 @@ class _HomePageState extends State<HomePage> {
         setState(() {
           _isLoading = false;
         });
+
+        await _showBannerHome();
       } catch (err) {
         print(err);
       }
@@ -176,25 +183,43 @@ class _HomePageState extends State<HomePage> {
 
   void _onTapFloatingButton() {
     showDialog(
-      context: context,
-      builder: (context){
-        return AddTaskDialog();
-      }
-    );
+        context: context,
+        builder: (context) {
+          return AddTaskDialog();
+        });
   }
 
-  void _onConnectivityChanged(ConnectivityCubitState state)async{
-    if(state.hasConnection && DownloadFileService().preferences.restart){
-        List<DownloadTask> failedConnectionTasks=DownloadFileService().activeTasks.where((e) => e.status==DownloadTaskStatus.failedConexion).toList();
-        print(failedConnectionTasks);
-        if(failedConnectionTasks.length>0){
-          for (var item in failedConnectionTasks) {
-            await DownloadFileService().resume(item.idCustom);
-          }
+  void _onConnectivityChanged(ConnectivityCubitState state) async {
+    if (state.hasConnection &&
+        (DownloadFileService()?.preferences?.restart ?? false)) {
+      List<DownloadTask> failedConnectionTasks = DownloadFileService()
+          .activeTasks
+          .where((e) => e.status == DownloadTaskStatus.failedConexion)
+          .toList();
+      print(failedConnectionTasks);
+      if (failedConnectionTasks.length > 0) {
+        for (var item in failedConnectionTasks) {
+          await DownloadFileService().resume(item.idCustom);
         }
+      }
       // if(!DownloadFileService().preferences.lastStatusIsPaused){
       //   await DownloadFileService().resumeAll();
       // }
     }
+  }
+
+  Future<void> _showBannerHome() async {
+    await BannerHome.show(listener: (event) {
+      SettingsDisplayBloc settingsDisplayBloc =
+          BlocProvider.of<SettingsDisplayBloc>(context);
+      if (event == MobileAdEvent.impression) {
+        settingsDisplayBloc.setPaddingApp(EdgeInsets.only(
+          bottom: BannerHome.bannerHomePage.size.height.toDouble(),
+        ));
+      } else if (event == MobileAdEvent.failedToLoad) {
+        settingsDisplayBloc.setPaddingApp(EdgeInsets.zero);
+      }
+      print("BannerAd event is $event");
+    });
   }
 }

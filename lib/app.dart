@@ -58,6 +58,13 @@ class _AppState extends State<App> with WidgetsBindingObserver {
             GlobalMaterialLocalizations.delegate,
             GlobalWidgetsLocalizations.delegate,
           ],
+          builder: (context, widget) {
+            return Container(
+              color: Theme.of(context).canvasColor,
+              padding: state.paddingApp,
+              child: widget,
+            );
+          },
         );
       }),
     );

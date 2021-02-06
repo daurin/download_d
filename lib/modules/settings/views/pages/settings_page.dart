@@ -115,14 +115,16 @@ class _SettingsPageState extends State<SettingsPage> {
 
   void _onTapAbout() {
     showAboutDialog(
-      context: context,
-      applicationIcon: Icon(Icons.download_rounded),
-      applicationName: _packageInfo.appName,
-      applicationVersion: _packageInfo.version,
-      children: [
-        Text('Autor: Daurin Lora'),
-      ]
-
-    );
+        context: context,
+        applicationIcon: Image.asset(
+          'assets/launcher/app_icon_3.png',
+          height: 48,
+          width: 48,
+        ),
+        applicationName: _packageInfo.appName,
+        applicationVersion: _packageInfo.version,
+        children: [
+          Text('Autor: Daurin Lora'),
+        ]);
   }
 }
